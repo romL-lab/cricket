@@ -1,0 +1,798 @@
+<!-- Chemin : /index.html -->
+<!-- Rôle   : Application principale — SPA Cricket Fléchettes (MVP) -->
+<!-- Stack  : HTML / CSS / JS vanilla — PWA offline-ready           -->
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#0d0d1a">
+  <meta name="description" content="Suivi de partie cricket fléchettes — remplace le papier-crayon">
+  <link rel="manifest" href="manifest.json">
+  <title>🎯 Cricket Fléchettes</title>
+  <style>
+    :root {
+      --bg:       #0d0d1a;
+      --surface:  #1a1a2e;
+      --surface2: #16213e;
+      --accent:   #e94560;
+      --green:    #4ecca3;
+      --amber:    #f59e0b;
+      --text:     #eaeaea;
+      --dim:      #666;
+      --border:   #2a2a4a;
+      --radius:   12px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100dvh;
+      overflow-x: hidden;
+    }
+
+    .screen { display: none; }
+    .screen.active { display: flex; flex-direction: column; min-height: 100dvh; }
+
+    /* ─── SETUP ─── */
+    .setup-wrap {
+      display: flex; flex-direction: column; align-items: center;
+      justify-content: center; min-height: 100dvh;
+      padding: 32px 24px; gap: 28px;
+    }
+    .logo { font-size: 52px; text-align: center; }
+    .app-title { font-size: 26px; font-weight: 800; letter-spacing: -0.5px; text-align: center; }
+    .app-sub { font-size: 13px; color: var(--dim); text-align: center; }
+
+    .section-label {
+      font-size: 11px; font-weight: 700; color: var(--dim);
+      text-transform: uppercase; letter-spacing: 1px;
+      text-align: center; margin-bottom: 10px;
+    }
+
+    .count-row {
+      display: flex; gap: 10px;
+      background: var(--surface); padding: 6px; border-radius: 50px;
+    }
+    .count-btn {
+      width: 48px; height: 48px; border-radius: 50%;
+      border: none; background: transparent;
+      color: var(--dim); font-size: 20px; font-weight: 800;
+      cursor: pointer; transition: all .2s;
+    }
+    .count-btn.active { background: var(--accent); color: #fff; }
+
+    .players-form { display: flex; flex-direction: column; gap: 10px; width: 100%; max-width: 340px; }
+    .player-row {
+      display: flex; align-items: center; gap: 12px;
+      background: var(--surface); border-radius: var(--radius);
+      padding: 6px 16px 6px 6px; border: 1px solid var(--border);
+    }
+    .p-avatar {
+      width: 42px; height: 42px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 20px; flex-shrink: 0;
+    }
+    .player-row input {
+      flex: 1; background: none; border: none; outline: none;
+      color: var(--text); font-size: 16px; font-weight: 600;
+    }
+    .player-row input::placeholder { color: var(--dim); font-weight: 400; }
+
+    .lang-row { display: flex; gap: 8px; }
+    .lang-btn {
+      padding: 9px 18px; border-radius: 50px;
+      border: 1px solid var(--border); background: transparent;
+      color: var(--dim); font-size: 14px; cursor: pointer; transition: all .2s;
+    }
+    .lang-btn.active { border-color: var(--green); color: var(--green); background: rgba(78,204,163,.12); }
+
+    .start-btn {
+      width: 100%; max-width: 340px; padding: 18px;
+      background: var(--accent); color: #fff; border: none;
+      border-radius: var(--radius); font-size: 18px; font-weight: 700;
+      cursor: pointer; letter-spacing: .3px; transition: opacity .2s;
+    }
+    .start-btn:active { opacity: .8; }
+
+    /* ─── GAME ─── */
+    .game-header {
+      background: var(--surface);
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
+      position: sticky; top: 0; z-index: 10;
+    }
+    .scores-bar { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; }
+    .score-chip {
+      display: flex; flex-direction: column; align-items: center;
+      padding: 4px 14px; border-radius: 10px; background: var(--bg);
+      min-width: 68px; transition: background .3s;
+    }
+    .score-chip.current { background: var(--accent); }
+    .score-chip .cname {
+      font-size: 10px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .5px; opacity: .8;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 80px;
+    }
+    .score-chip .cpts { font-size: 22px; font-weight: 800; line-height: 1.1; }
+
+    .grid-wrap { flex: 1; overflow-y: auto; padding: 8px 10px; }
+    .cgrid { width: 100%; border-collapse: collapse; table-layout: fixed; }
+    .cgrid th {
+      padding: 6px 2px; text-align: center;
+      font-size: 11px; color: var(--dim); font-weight: 700;
+      text-transform: uppercase; letter-spacing: .5px;
+      border-bottom: 1px solid var(--border);
+    }
+    .cgrid .num-col {
+      width: 52px; text-align: center;
+      font-size: 20px; font-weight: 800; color: var(--text);
+      padding: 8px 2px; border-bottom: 1px solid var(--border);
+      cursor: pointer; user-select: none; transition: background .15s;
+    }
+    .cgrid .num-col:active { background: rgba(233,69,96,.15); }
+    .num-col.dead { color: var(--dim); }
+    .cgrid .mk-cell {
+      text-align: center; border-bottom: 1px solid var(--border);
+      padding: 4px 2px; vertical-align: middle;
+    }
+    .mk-cell.closed { background: rgba(78,204,163,.08); }
+    .mk-wrap { display: inline-flex; align-items: center; justify-content: center; width: 100%; }
+
+    /* ─── FOOTER ─── */
+    .game-footer { border-top: 1px solid var(--border); padding-bottom: env(safe-area-inset-bottom, 0); }
+
+    .turn-bar {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 14px; background: var(--surface);
+      border-bottom: 1px solid var(--border); gap: 10px;
+    }
+    .turn-info .tname { font-size: 17px; font-weight: 700; }
+    .turn-info .tdarts { font-size: 12px; color: var(--dim); margin-top: 2px; }
+    .dart-pips { display: inline-flex; gap: 5px; vertical-align: middle; margin-left: 6px; }
+    .dart-pip { width: 9px; height: 9px; border-radius: 50%; background: var(--border); transition: background .2s; }
+    .dart-pip.done { background: var(--accent); }
+
+    .next-btn {
+      padding: 10px 16px; background: var(--green); color: #0d0d1a;
+      border: none; border-radius: var(--radius);
+      font-size: 14px; font-weight: 800; cursor: pointer;
+      white-space: nowrap; transition: opacity .2s;
+    }
+    .next-btn:active { opacity: .8; }
+    .next-btn.result-ready { background: var(--amber); }
+
+    .feedback { padding: 4px 16px 6px; min-height: 26px; font-size: 13px; color: var(--dim); font-style: italic; text-align: center; }
+
+    .actions-bar { display: flex; gap: 8px; padding: 8px 14px; align-items: stretch; }
+    .mic-btn {
+      flex: 1; padding: 14px 12px; background: var(--surface2);
+      border: 2px solid var(--border); border-radius: var(--radius);
+      color: var(--text); font-size: 15px; font-weight: 600;
+      cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;
+      transition: all .2s;
+    }
+    .mic-btn.on { border-color: var(--accent); background: rgba(233,69,96,.12); color: var(--accent); animation: pulse 1.4s infinite; }
+    @keyframes pulse { 0%,100%{box-shadow:0 0 0 0 rgba(233,69,96,.4)} 50%{box-shadow:0 0 0 8px rgba(233,69,96,0)} }
+    .undo-btn {
+      padding: 14px 16px; background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); color: var(--dim); font-size: 20px; cursor: pointer; transition: opacity .2s;
+    }
+    .undo-btn:disabled { opacity: .25; cursor: not-allowed; }
+
+    .nums-bar { display: flex; gap: 5px; padding: 0 14px 12px; }
+    .numb {
+      flex: 1; padding: 11px 2px; background: var(--surface);
+      border: 1px solid var(--border); border-radius: 10px;
+      color: var(--text); font-size: 13px; font-weight: 700;
+      cursor: pointer; text-align: center; transition: all .15s;
+    }
+    .numb:active { background: var(--accent); border-color: var(--accent); }
+
+    /* ─── MODAL ─── */
+    .overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,.72); z-index: 200;
+      align-items: flex-end; justify-content: center;
+    }
+    .overlay.open { display: flex; }
+    .sheet {
+      background: var(--surface); border-radius: 20px 20px 0 0;
+      padding: 24px; width: 100%; max-width: 480px;
+    }
+    .sheet-title { font-size: 18px; font-weight: 700; text-align: center; margin-bottom: 18px; }
+    .sheet-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .sheet-opt {
+      padding: 18px 8px; border: 2px solid var(--border); border-radius: var(--radius);
+      background: var(--bg); color: var(--text); font-size: 17px; font-weight: 700;
+      cursor: pointer; text-align: center; transition: transform .12s;
+      display: flex; flex-direction: column; align-items: center; gap: 4px;
+    }
+    .sheet-opt:active { transform: scale(.95); }
+    .sheet-opt .olabel { font-size: 11px; font-weight: 500; color: var(--dim); text-transform: uppercase; letter-spacing: .5px; }
+    .sheet-cancel {
+      width: 100%; margin-top: 10px; padding: 14px;
+      background: transparent; border: 1px solid var(--border);
+      border-radius: var(--radius); color: var(--dim); font-size: 15px; cursor: pointer;
+    }
+
+    /* ─── RESULT ─── */
+    .result-wrap {
+      display: flex; flex-direction: column; align-items: center;
+      justify-content: center; min-height: 100dvh;
+      padding: 40px 24px; gap: 24px; text-align: center;
+    }
+    .r-trophy { font-size: 72px; }
+    .r-sub { font-size: 13px; color: var(--dim); text-transform: uppercase; letter-spacing: 1px; }
+    .r-winner { font-size: 38px; font-weight: 800; color: var(--green); }
+    .r-scores { width: 100%; max-width: 320px; display: flex; flex-direction: column; gap: 8px; }
+    .r-row {
+      display: flex; justify-content: space-between; align-items: center;
+      background: var(--surface); padding: 13px 16px; border-radius: var(--radius);
+    }
+    .r-row.top { border: 1px solid var(--green); }
+    .r-btn {
+      width: 100%; max-width: 320px; padding: 17px; border: none;
+      border-radius: var(--radius); font-size: 17px; font-weight: 700;
+      cursor: pointer; transition: opacity .2s;
+    }
+    .r-btn:active { opacity: .8; }
+    .r-btn.primary { background: var(--accent); color: #fff; }
+    .r-btn.secondary { background: transparent; border: 1px solid var(--border); color: var(--dim); font-size: 15px; }
+  </style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════ SETUP ═══════════════════════════════ -->
+<div id="s-setup" class="screen active">
+  <div class="setup-wrap">
+    <div class="logo">🎯</div>
+    <div>
+      <div class="app-title">Cricket Fléchettes</div>
+      <div class="app-sub">Fini le papier-crayon !</div>
+    </div>
+
+    <div>
+      <div class="section-label">Nombre de joueurs</div>
+      <div class="count-row">
+        <button class="count-btn" onclick="setCount(2)">2</button>
+        <button class="count-btn active" onclick="setCount(3)">3</button>
+        <button class="count-btn" onclick="setCount(4)">4</button>
+      </div>
+    </div>
+
+    <div class="players-form" id="players-form"></div>
+
+    <div>
+      <div class="section-label">Langue vocale</div>
+      <div class="lang-row">
+        <button class="lang-btn active" id="l-fr" onclick="setLang('fr-FR')">🇫🇷 Français</button>
+        <button class="lang-btn" id="l-en" onclick="setLang('en-US')">🇬🇧 English</button>
+      </div>
+    </div>
+
+    <button class="start-btn" onclick="startGame()">Commencer ▶</button>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════ GAME ════════════════════════════════ -->
+<div id="s-game" class="screen">
+  <div class="game-header">
+    <div class="scores-bar" id="scores-bar"></div>
+  </div>
+
+  <div class="grid-wrap">
+    <table class="cgrid" id="cgrid"></table>
+  </div>
+
+  <div class="game-footer">
+    <div class="turn-bar">
+      <div class="turn-info">
+        <div class="tname" id="t-name">—</div>
+        <div class="tdarts">Fléchettes <span class="dart-pips" id="dart-pips"></span></div>
+      </div>
+      <button class="next-btn" id="next-btn" onclick="nextPlayer()">Suivant ➔</button>
+    </div>
+
+    <div class="feedback" id="feedback"></div>
+
+    <div class="actions-bar">
+      <button class="mic-btn" id="mic-btn" onclick="toggleMic()">
+        <span id="mic-icon">🎤</span>
+        <span id="mic-lbl">Annoncer</span>
+      </button>
+      <button class="undo-btn" id="undo-btn" onclick="undoLast()" disabled title="Annuler dernier lancer">↩</button>
+    </div>
+
+    <div class="nums-bar" id="nums-bar"></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════ RESULT ══════════════════════════════ -->
+<div id="s-result" class="screen">
+  <div class="result-wrap">
+    <div class="r-trophy">🏆</div>
+    <div>
+      <div class="r-sub">Vainqueur</div>
+      <div class="r-winner" id="r-winner">—</div>
+    </div>
+    <div class="r-scores" id="r-scores"></div>
+    <button class="r-btn primary" onclick="playAgain()">Revanche 🔁</button>
+    <button class="r-btn secondary" onclick="newGame()">Nouvelle partie</button>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════ MODAL ═══════════════════════════════ -->
+<div class="overlay" id="modal">
+  <div class="sheet">
+    <div class="sheet-title" id="modal-title">Où touche la fléchette ?</div>
+    <div class="sheet-grid">
+      <button class="sheet-opt" onclick="modalPick(1)">
+        <span>╱</span><span class="olabel">Simple</span>
+      </button>
+      <button class="sheet-opt" onclick="modalPick(2)">
+        <span>✕</span><span class="olabel">Double</span>
+      </button>
+      <button class="sheet-opt" onclick="modalPick(3)">
+        <span>⊗</span><span class="olabel">Triple</span>
+      </button>
+      <button class="sheet-opt" onclick="modalPick(0)">
+        <span>💨</span><span class="olabel">Raté</span>
+      </button>
+    </div>
+    <button class="sheet-cancel" onclick="closeModal()">Annuler</button>
+  </div>
+</div>
+
+<script>
+// ─────────────────────────────────────────────────────────
+// CONSTANTS
+// ─────────────────────────────────────────────────────────
+const NUMS   = [20, 19, 18, 17, 16, 15, 'bull'];
+const VALS   = { 20:20, 19:19, 18:18, 17:17, 16:16, 15:15, bull:25 };
+const COLORS = ['#e94560','#3b82f6','#a855f7','#10b981'];
+const EMOJIS = ['🔴','🔵','🟣','🟢'];
+
+// ─────────────────────────────────────────────────────────
+// STATE
+// ─────────────────────────────────────────────────────────
+let cfg      = { count: 3, lang: 'fr-FR' };
+let G        = null;   // game object
+let modalNum = null;
+let recog    = null;
+let recogOn  = false;
+
+// ─────────────────────────────────────────────────────────
+// SETUP
+// ─────────────────────────────────────────────────────────
+function setCount(n) {
+  cfg.count = n;
+  document.querySelectorAll('.count-btn').forEach((b, i) => b.classList.toggle('active', i + 2 === n));
+  buildInputs(n);
+}
+
+function setLang(l) {
+  cfg.lang = l;
+  document.getElementById('l-fr').classList.toggle('active', l === 'fr-FR');
+  document.getElementById('l-en').classList.toggle('active', l === 'en-US');
+}
+
+function buildInputs(n) {
+  const form = document.getElementById('players-form');
+  const old  = [...form.querySelectorAll('input')].map(i => i.value);
+  const ph   = cfg.lang === 'fr-FR'
+    ? ['Joueur 1','Joueur 2','Joueur 3','Joueur 4']
+    : ['Player 1','Player 2','Player 3','Player 4'];
+  form.innerHTML = '';
+  for (let i = 0; i < n; i++) {
+    const d = document.createElement('div');
+    d.className = 'player-row';
+    d.innerHTML = `
+      <div class="p-avatar" style="background:${COLORS[i]}">${EMOJIS[i]}</div>
+      <input type="text" placeholder="${ph[i]}" value="${old[i] || ''}"
+             maxlength="14" autocorrect="off" autocapitalize="words">
+    `;
+    form.appendChild(d);
+  }
+}
+
+function startGame() {
+  const inputs  = [...document.querySelectorAll('#players-form input')];
+  const ph = cfg.lang === 'fr-FR'
+    ? ['Joueur 1','Joueur 2','Joueur 3','Joueur 4']
+    : ['Player 1','Player 2','Player 3','Player 4'];
+  const players = inputs.map((inp, i) => inp.value.trim() || ph[i]);
+  initGame(players);
+  show('s-game');
+  render();
+}
+
+// ─────────────────────────────────────────────────────────
+// GAME LOGIC
+// ─────────────────────────────────────────────────────────
+function initGame(players) {
+  G = {
+    players,
+    cur:    0,
+    darts:  0,
+    marks:  Object.fromEntries(players.map(p => [p, Object.fromEntries(NUMS.map(n => [n, 0]))])),
+    scores: Object.fromEntries(players.map(p => [p, 0])),
+    hist:   [],
+    winner: null,
+  };
+}
+
+/**
+ * Enregistre un lancer sur une case avec un multiplicateur.
+ * @param {number|string} number - La case touchée (15-20 ou 'bull')
+ * @param {number} mult - 1=simple, 2=double, 3=triple
+ */
+function applyDart(number, mult) {
+  if (!G || G.winner) return;
+  if (G.darts >= 3) {
+    setFb(cfg.lang === 'fr-FR' ? '3 fléchettes lancées — appuyez sur Suivant ➔' : '3 darts thrown — press Next ➔');
+    return;
+  }
+
+  const p    = G.players[G.cur];
+  const preM = G.marks[p][number];
+  const preS = G.scores[p];
+
+  for (let i = 0; i < mult; i++) {
+    if (G.marks[p][number] < 3) {
+      G.marks[p][number]++;
+    } else {
+      // Case fermée → marquer si au moins un adversaire est encore ouvert
+      const anyOpen = G.players.filter(q => q !== p).some(q => G.marks[q][number] < 3);
+      if (anyOpen) G.scores[p] += VALS[number];
+    }
+  }
+
+  G.darts++;
+  G.hist.push({ p, number, mult, preM, preS });
+  checkWin();
+  render();
+  if (G.darts >= 3 && !G.winner)
+    setFb(cfg.lang === 'fr-FR' ? '3 fléchettes — appuyez sur Suivant ➔' : '3 darts — press Next ➔');
+}
+
+/** Enregistre un lancer manqué (compte la fléchette, aucune marque). */
+function missDart() {
+  if (!G || G.winner || G.darts >= 3) return;
+  const p = G.players[G.cur];
+  G.darts++;
+  G.hist.push({ p, number: null, mult: 0, preM: null, preS: G.scores[p] });
+  render();
+  if (G.darts >= 3 && !G.winner)
+    setFb(cfg.lang === 'fr-FR' ? '3 fléchettes — appuyez sur Suivant ➔' : '3 darts — press Next ➔');
+}
+
+/** Annule le dernier lancer du joueur actif. */
+function undoLast() {
+  if (!G || !G.hist.length) return;
+  const last = G.hist[G.hist.length - 1];
+  if (last.p !== G.players[G.cur]) return; // sécurité : seulement le tour actif
+  G.hist.pop();
+  if (last.number !== null) {
+    G.marks[last.p][last.number] = last.preM;
+    G.scores[last.p]             = last.preS;
+  }
+  G.darts  = Math.max(0, G.darts - 1);
+  G.winner = null;
+  setFb('');
+  render();
+}
+
+/** Passe au joueur suivant (ou affiche les résultats si vainqueur). */
+function nextPlayer() {
+  if (!G) return;
+  if (G.winner) { showResult(); return; }
+  G.cur   = (G.cur + 1) % G.players.length;
+  G.darts = 0;
+  setFb('');
+  render();
+}
+
+/**
+ * Vérifie si un joueur a gagné.
+ * Condition : toutes les cases fermées ET score >= tous les adversaires.
+ */
+function checkWin() {
+  for (const p of G.players) {
+    if (!NUMS.every(n => G.marks[p][n] >= 3)) continue;
+    const maxOpp = Math.max(...G.players.filter(q => q !== p).map(q => G.scores[q]));
+    if (G.scores[p] >= maxOpp) { G.winner = p; return; }
+  }
+}
+
+// ─────────────────────────────────────────────────────────
+// RENDERING
+// ─────────────────────────────────────────────────────────
+function render() {
+  renderScores();
+  renderGrid();
+  renderFooter();
+}
+
+function renderScores() {
+  document.getElementById('scores-bar').innerHTML = G.players.map((p, i) => `
+    <div class="score-chip ${i === G.cur ? 'current' : ''}">
+      <div class="cname">${esc(trunc(p, 9))}</div>
+      <div class="cpts">${G.scores[p]}</div>
+    </div>
+  `).join('');
+}
+
+function renderGrid() {
+  const t = document.getElementById('cgrid');
+  let h = `<thead><tr>
+    <th></th>
+    ${G.players.map((p, i) => `<th style="color:${COLORS[i]}">${esc(trunc(p, 7))}</th>`).join('')}
+  </tr></thead><tbody>`;
+
+  for (const num of NUMS) {
+    const lbl     = num === 'bull' ? '🎯' : num;
+    const allDead = G.players.every(p => G.marks[p][num] >= 3);
+    h += `<tr>
+      <td class="num-col${allDead ? ' dead' : ''}" onclick="openModal('${num}')">${lbl}</td>
+      ${G.players.map(p => {
+        const m = G.marks[p][num];
+        return `<td class="mk-cell${m >= 3 ? ' closed' : ''}">
+          <div class="mk-wrap">${markSVG(m)}</div>
+        </td>`;
+      }).join('')}
+    </tr>`;
+  }
+  t.innerHTML = h + '</tbody>';
+}
+
+function renderFooter() {
+  const p = G.players[G.cur];
+  document.getElementById('t-name').textContent = p;
+
+  // Indicateurs de fléchettes
+  document.getElementById('dart-pips').innerHTML = [0,1,2].map(i =>
+    `<span class="dart-pip${i < G.darts ? ' done' : ''}"></span>`
+  ).join('');
+
+  // Bouton suivant / résultats
+  const nb = document.getElementById('next-btn');
+  if (G.winner) {
+    nb.textContent = '🏆 Résultats';
+    nb.classList.add('result-ready');
+  } else {
+    nb.textContent = 'Suivant ➔';
+    nb.classList.remove('result-ready');
+  }
+
+  // Bouton annuler
+  const canUndo = G.hist.length > 0 && G.hist[G.hist.length - 1].p === p;
+  document.getElementById('undo-btn').disabled = !canUndo;
+
+  // Boutons de saisie rapide
+  document.getElementById('nums-bar').innerHTML = NUMS.map(n => {
+    const lbl = n === 'bull' ? '🎯' : n;
+    return `<button class="numb" onclick="openModal('${n}')">${lbl}</button>`;
+  }).join('');
+}
+
+/**
+ * Génère le SVG de marquage papier fidèle :
+ *   1 marque → ╱ (diagonale)
+ *   2 marques → ✕ (croix)
+ *   3 marques → ⊗ (croix entourée = fermé)
+ */
+function markSVG(n) {
+  const col = n >= 3 ? '#4ecca3' : '#eaeaea';
+  let p = '';
+  if (n >= 1) p += `<line x1="9" y1="9" x2="27" y2="27" stroke="${col}" stroke-width="2.5" stroke-linecap="round"/>`;
+  if (n >= 2) p += `<line x1="27" y1="9" x2="9" y2="27" stroke="${col}" stroke-width="2.5" stroke-linecap="round"/>`;
+  if (n >= 3) p += `<circle cx="18" cy="18" r="12.5" fill="none" stroke="${col}" stroke-width="2.5"/>`;
+  return `<svg width="36" height="36" viewBox="0 0 36 36" xmlns="http://www.w3.org/2000/svg">${p}</svg>`;
+}
+
+// ─────────────────────────────────────────────────────────
+// MODAL (saisie manuelle)
+// ─────────────────────────────────────────────────────────
+function openModal(num) {
+  if (G.darts >= 3) {
+    setFb(cfg.lang === 'fr-FR' ? '3 fléchettes — appuyez sur Suivant ➔' : '3 darts — press Next ➔');
+    return;
+  }
+  modalNum = num === 'bull' ? 'bull' : parseInt(num);
+  const lbl = num === 'bull' ? 'Bull' : num;
+  document.getElementById('modal-title').textContent =
+    cfg.lang === 'fr-FR' ? `Fléchette sur le ${lbl}` : `Dart on ${lbl}`;
+  document.getElementById('modal').classList.add('open');
+}
+
+function closeModal() {
+  document.getElementById('modal').classList.remove('open');
+  modalNum = null;
+}
+
+function modalPick(mult) {
+  closeModal();
+  mult === 0 ? missDart() : applyDart(modalNum, mult);
+}
+
+// ─────────────────────────────────────────────────────────
+// VOICE RECOGNITION — Web Speech API
+// ─────────────────────────────────────────────────────────
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+function toggleMic() {
+  if (!SR) { setFb('❌ Voix non supportée — utilisez les boutons'); return; }
+  recogOn ? stopRecog() : startRecog();
+}
+
+function startRecog() {
+  recog = new SR();
+  recog.lang            = cfg.lang;
+  recog.interimResults  = false;
+  recog.maxAlternatives = 3;
+  recog.continuous      = false;
+
+  recog.onstart  = () => {
+    recogOn = true;
+    document.getElementById('mic-btn').classList.add('on');
+    document.getElementById('mic-icon').textContent = '🔴';
+    document.getElementById('mic-lbl').textContent  = cfg.lang === 'fr-FR' ? 'Écoute…' : 'Listening…';
+    setFb(cfg.lang === 'fr-FR' ? '🎤 Annoncez vos lancers…' : '🎤 Announce your throws…');
+  };
+
+  recog.onresult = (e) => {
+    const t = e.results[0][0].transcript;
+    setFb(`« ${t} »`);
+    processVoice(t);
+  };
+
+  recog.onerror = (e) => { setFb(`❌ ${e.error}`); stopRecog(); };
+  recog.onend   = () => stopRecog();
+  recog.start();
+}
+
+function stopRecog() {
+  recogOn = false;
+  try { recog?.stop(); } catch(e) {}
+  document.getElementById('mic-btn').classList.remove('on');
+  document.getElementById('mic-icon').textContent = '🎤';
+  document.getElementById('mic-lbl').textContent  = cfg.lang === 'fr-FR' ? 'Annoncer' : 'Announce';
+}
+
+/** Parse et applique un transcript vocal complet ("double 20, un 17, rien"). */
+function processVoice(txt) {
+  const t = txt.toLowerCase().normalize('NFC').trim();
+
+  if (/\b(annuler|cancel|undo|efface)\b/.test(t))              { undoLast();   return; }
+  if (/\b(suivant|next|valider|terminé|fini|done)\b/.test(t)) { nextPlayer(); return; }
+
+  const darts = parseAnnounce(t);
+  if (!darts.length) {
+    setFb(cfg.lang === 'fr-FR' ? '⚠ Non compris — saisissez manuellement' : '⚠ Not understood — use buttons');
+    return;
+  }
+
+  for (const d of darts) {
+    if (G.darts >= 3) break;
+    d.miss ? missDart() : applyDart(d.num, d.mult);
+  }
+}
+
+/**
+ * Découpe une annonce en liste de lancers individuels.
+ * Entrée : "double 20, un 17, rien"
+ * Sortie : [{num:20,mult:2}, {num:17,mult:1}, {miss:true}]
+ */
+function parseAnnounce(t) {
+  return t
+    .replace(/\s+(et|and|puis|then)\s+/g, ',')
+    .split(/\s*[,;]\s*/)
+    .map(s => s.trim())
+    .filter(Boolean)
+    .map(parseOne)
+    .filter(Boolean);
+}
+
+/** Parse un segment unique : "double 20" → {num:20, mult:2}. */
+function parseOne(s) {
+  if (/^(rien|nothing|miss|manqué|manque|raté|rate|zéro|zero|à côté|raté|missed)$/.test(s))
+    return { miss: true };
+
+  let mult = 1;
+  let r    = s;
+
+  const TR = r.match(/^(triple|treble|trois|3)\s+/);
+  const DB = r.match(/^(double|deux|2)\s+/);
+  const SI = r.match(/^(simple|single|un|une|1)\s+/);
+
+  if (TR)      { mult = 3; r = r.slice(TR[0].length); }
+  else if (DB) { mult = 2; r = r.slice(DB[0].length); }
+  else if (SI) { mult = 1; r = r.slice(SI[0].length); }
+
+  r = r.trim();
+
+  const MAP = {
+    '15':15,'quinze':15,'fifteen':15,
+    '16':16,'seize':16,'sixteen':16,
+    '17':17,'dix-sept':17,'dix sept':17,'seventeen':17,
+    '18':18,'dix-huit':18,'dix huit':18,'eighteen':18,
+    '19':19,'dix-neuf':19,'dix neuf':19,'nineteen':19,
+    '20':20,'vingt':20,'twenty':20,
+    'bull':'bull','bulle':'bull','25':'bull',
+    'bullseye':'bull',"bull's eye":'bull','bulls eye':'bull',
+  };
+
+  for (const [k, v] of Object.entries(MAP)) {
+    if (r === k || r.startsWith(k + ' ')) return { num: v, mult };
+  }
+  return null;
+}
+
+// ─────────────────────────────────────────────────────────
+// RESULT SCREEN
+// ─────────────────────────────────────────────────────────
+function showResult() {
+  const sorted = [...G.players].sort((a, b) => {
+    const ac = NUMS.every(n => G.marks[a][n] >= 3);
+    const bc = NUMS.every(n => G.marks[b][n] >= 3);
+    if (ac && !bc) return -1;
+    if (!ac && bc) return  1;
+    return G.scores[b] - G.scores[a];
+  });
+  const w = G.winner || sorted[0];
+
+  document.getElementById('r-winner').textContent = w;
+  document.getElementById('r-scores').innerHTML   = sorted.map((p, i) => `
+    <div class="r-row ${p === w ? 'top' : ''}">
+      <span>${['🥇','🥈','🥉','4️⃣'][i]} ${esc(p)}</span>
+      <span style="font-weight:800">${G.scores[p]} pts</span>
+    </div>
+  `).join('');
+
+  show('s-result');
+}
+
+function playAgain() {
+  initGame([...G.players].reverse());
+  show('s-game');
+  render();
+}
+
+function newGame() { show('s-setup'); }
+
+// ─────────────────────────────────────────────────────────
+// UTILS
+// ─────────────────────────────────────────────────────────
+function show(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+function setFb(msg) { document.getElementById('feedback').textContent = msg; }
+function trunc(s, n) { return s.length > n ? s.slice(0, n) + '…' : s; }
+function esc(s) {
+  return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+// ─────────────────────────────────────────────────────────
+// SERVICE WORKER REGISTRATION
+// ─────────────────────────────────────────────────────────
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js')
+      .then(() => console.log('[SW] Enregistré — mode offline actif'))
+      .catch(err  => console.warn('[SW] Échec :', err));
+  });
+}
+
+// ─────────────────────────────────────────────────────────
+// INIT
+// ─────────────────────────────────────────────────────────
+buildInputs(cfg.count);
+</script>
+</body>
+</html>
