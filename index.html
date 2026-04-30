@@ -1,6 +1,7 @@
 <!-- Chemin : /index.html -->
-<!-- Rôle   : Application principale — SPA Cricket Fléchettes (MVP) -->
-<!-- Stack  : HTML / CSS / JS vanilla — PWA offline-ready           -->
+<!-- Rôle   : Application principale — SPA Cricket Fléchettes (MVP v2) -->
+<!-- Stack  : HTML / CSS / JS vanilla — PWA offline-ready              -->
+<!-- v2     : Flow vocal repensé — annonce de la volée entière         -->
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -151,36 +152,68 @@
       padding: 10px 14px; background: var(--surface);
       border-bottom: 1px solid var(--border); gap: 10px;
     }
-    .turn-info .tname { font-size: 17px; font-weight: 700; }
-    .turn-info .tdarts { font-size: 12px; color: var(--dim); margin-top: 2px; }
-    .dart-pips { display: inline-flex; gap: 5px; vertical-align: middle; margin-left: 6px; }
-    .dart-pip { width: 9px; height: 9px; border-radius: 50%; background: var(--border); transition: background .2s; }
-    .dart-pip.done { background: var(--accent); }
+    .turn-label { font-size: 11px; color: var(--dim); text-transform: uppercase; letter-spacing: .8px; margin-bottom: 2px; }
+    .turn-name  { font-size: 20px; font-weight: 800; }
 
     .next-btn {
-      padding: 10px 16px; background: var(--green); color: #0d0d1a;
+      padding: 12px 20px; background: var(--green); color: #0d0d1a;
       border: none; border-radius: var(--radius);
-      font-size: 14px; font-weight: 800; cursor: pointer;
+      font-size: 15px; font-weight: 800; cursor: pointer;
       white-space: nowrap; transition: opacity .2s;
     }
     .next-btn:active { opacity: .8; }
     .next-btn.result-ready { background: var(--amber); }
 
-    .feedback { padding: 4px 16px 6px; min-height: 26px; font-size: 13px; color: var(--dim); font-style: italic; text-align: center; }
-
-    .actions-bar { display: flex; gap: 8px; padding: 8px 14px; align-items: stretch; }
+    /* Zone micro — cœur du flow v2 */
+    .mic-zone {
+      padding: 12px 14px 6px;
+      display: flex; flex-direction: column; align-items: center; gap: 8px;
+    }
     .mic-btn {
-      flex: 1; padding: 14px 12px; background: var(--surface2);
+      width: 100%; padding: 18px 12px; background: var(--surface2);
       border: 2px solid var(--border); border-radius: var(--radius);
-      color: var(--text); font-size: 15px; font-weight: 600;
-      cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;
+      color: var(--text); font-size: 17px; font-weight: 700;
+      cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px;
       transition: all .2s;
     }
-    .mic-btn.on { border-color: var(--accent); background: rgba(233,69,96,.12); color: var(--accent); animation: pulse 1.4s infinite; }
-    @keyframes pulse { 0%,100%{box-shadow:0 0 0 0 rgba(233,69,96,.4)} 50%{box-shadow:0 0 0 8px rgba(233,69,96,0)} }
+    .mic-btn.on {
+      border-color: var(--accent); background: rgba(233,69,96,.12);
+      color: var(--accent); animation: pulse 1.4s infinite;
+    }
+    @keyframes pulse {
+      0%,100% { box-shadow: 0 0 0 0 rgba(233,69,96,.4); }
+      50%      { box-shadow: 0 0 0 10px rgba(233,69,96,0); }
+    }
+    .mic-hint {
+      font-size: 12px; color: var(--dim); font-style: italic; text-align: center;
+      line-height: 1.5;
+    }
+
+    /* Transcript affiché après reconnaissance */
+    .transcript-bar {
+      margin: 0 14px 4px; padding: 8px 12px;
+      background: var(--surface); border-radius: 8px;
+      font-size: 13px; color: var(--green);
+      min-height: 0; display: none;
+    }
+    .transcript-bar.visible { display: block; }
+    .transcript-label { font-size: 10px; color: var(--dim); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 2px; }
+
+    /* Feedback erreur / info */
+    .feedback {
+      padding: 2px 16px 8px; min-height: 22px;
+      font-size: 12px; color: var(--dim); font-style: italic; text-align: center;
+    }
+
+    /* Actions secondaires */
+    .actions-row {
+      display: flex; gap: 8px; padding: 4px 14px 8px;
+    }
     .undo-btn {
-      padding: 14px 16px; background: var(--surface); border: 1px solid var(--border);
-      border-radius: var(--radius); color: var(--dim); font-size: 20px; cursor: pointer; transition: opacity .2s;
+      flex: 1; padding: 12px; background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); color: var(--dim); font-size: 14px;
+      font-weight: 600; cursor: pointer; transition: opacity .2s;
+      display: flex; align-items: center; justify-content: center; gap: 6px;
     }
     .undo-btn:disabled { opacity: .25; cursor: not-allowed; }
 
@@ -247,7 +280,7 @@
 </head>
 <body>
 
-<!-- ═══════════════════════════════ SETUP ═══════════════════════════════ -->
+<!-- ════════════════════════ SETUP ════════════════════════ -->
 <div id="s-setup" class="screen active">
   <div class="setup-wrap">
     <div class="logo">🎯</div>
@@ -279,8 +312,9 @@
   </div>
 </div>
 
-<!-- ═══════════════════════════════ GAME ════════════════════════════════ -->
+<!-- ════════════════════════ GAME ═════════════════════════ -->
 <div id="s-game" class="screen">
+
   <div class="game-header">
     <div class="scores-bar" id="scores-bar"></div>
   </div>
@@ -290,29 +324,49 @@
   </div>
 
   <div class="game-footer">
+
+    <!-- Joueur actif + bouton suivant -->
     <div class="turn-bar">
-      <div class="turn-info">
-        <div class="tname" id="t-name">—</div>
-        <div class="tdarts">Fléchettes <span class="dart-pips" id="dart-pips"></span></div>
+      <div>
+        <div class="turn-label">Tour de</div>
+        <div class="turn-name" id="t-name">—</div>
       </div>
       <button class="next-btn" id="next-btn" onclick="nextPlayer()">Suivant ➔</button>
     </div>
 
-    <div class="feedback" id="feedback"></div>
-
-    <div class="actions-bar">
+    <!-- Zone micro (cœur du flow) -->
+    <div class="mic-zone">
       <button class="mic-btn" id="mic-btn" onclick="toggleMic()">
         <span id="mic-icon">🎤</span>
-        <span id="mic-lbl">Annoncer</span>
+        <span id="mic-lbl">Appuyez et annoncez votre volée</span>
       </button>
-      <button class="undo-btn" id="undo-btn" onclick="undoLast()" disabled title="Annuler dernier lancer">↩</button>
+      <div class="mic-hint" id="mic-hint">
+        Ex : « un 20, deux 18 » · « triple 20 » · « centre » · « oeil de boeuf »<br>
+        Dites « suivant » pour passer au joueur suivant
+      </div>
     </div>
 
+    <!-- Transcript reconnu -->
+    <div class="transcript-bar" id="transcript-bar">
+      <div class="transcript-label">Reconnu</div>
+      <span id="transcript-text"></span>
+    </div>
+
+    <!-- Feedback erreur -->
+    <div class="feedback" id="feedback"></div>
+
+    <!-- Actions secondaires -->
+    <div class="actions-row">
+      <button class="undo-btn" id="undo-btn" onclick="undoLast()" disabled>↩ Annuler dernier</button>
+    </div>
+
+    <!-- Saisie manuelle rapide -->
     <div class="nums-bar" id="nums-bar"></div>
+
   </div>
 </div>
 
-<!-- ═══════════════════════════════ RESULT ══════════════════════════════ -->
+<!-- ════════════════════════ RESULT ════════════════════════ -->
 <div id="s-result" class="screen">
   <div class="result-wrap">
     <div class="r-trophy">🏆</div>
@@ -326,19 +380,19 @@
   </div>
 </div>
 
-<!-- ═══════════════════════════════ MODAL ═══════════════════════════════ -->
+<!-- ════════════════════════ MODAL ════════════════════════ -->
 <div class="overlay" id="modal">
   <div class="sheet">
     <div class="sheet-title" id="modal-title">Où touche la fléchette ?</div>
     <div class="sheet-grid">
       <button class="sheet-opt" onclick="modalPick(1)">
-        <span>╱</span><span class="olabel">Simple</span>
+        <span>╱</span><span class="olabel">Simple · 1</span>
       </button>
       <button class="sheet-opt" onclick="modalPick(2)">
-        <span>✕</span><span class="olabel">Double</span>
+        <span>✕</span><span class="olabel">Double · 2</span>
       </button>
       <button class="sheet-opt" onclick="modalPick(3)">
-        <span>⊗</span><span class="olabel">Triple</span>
+        <span>⊗</span><span class="olabel">Triple · 3</span>
       </button>
       <button class="sheet-opt" onclick="modalPick(0)">
         <span>💨</span><span class="olabel">Raté</span>
@@ -349,26 +403,26 @@
 </div>
 
 <script>
-// ─────────────────────────────────────────────────────────
+// ──────────────────────────────────────────────────────────
 // CONSTANTS
-// ─────────────────────────────────────────────────────────
+// ──────────────────────────────────────────────────────────
 const NUMS   = [20, 19, 18, 17, 16, 15, 'bull'];
 const VALS   = { 20:20, 19:19, 18:18, 17:17, 16:16, 15:15, bull:25 };
 const COLORS = ['#e94560','#3b82f6','#a855f7','#10b981'];
 const EMOJIS = ['🔴','🔵','🟣','🟢'];
 
-// ─────────────────────────────────────────────────────────
+// ──────────────────────────────────────────────────────────
 // STATE
-// ─────────────────────────────────────────────────────────
+// ──────────────────────────────────────────────────────────
 let cfg      = { count: 3, lang: 'fr-FR' };
-let G        = null;   // game object
+let G        = null;
 let modalNum = null;
 let recog    = null;
 let recogOn  = false;
 
-// ─────────────────────────────────────────────────────────
+// ──────────────────────────────────────────────────────────
 // SETUP
-// ─────────────────────────────────────────────────────────
+// ──────────────────────────────────────────────────────────
 function setCount(n) {
   cfg.count = n;
   document.querySelectorAll('.count-btn').forEach((b, i) => b.classList.toggle('active', i + 2 === n));
@@ -384,9 +438,7 @@ function setLang(l) {
 function buildInputs(n) {
   const form = document.getElementById('players-form');
   const old  = [...form.querySelectorAll('input')].map(i => i.value);
-  const ph   = cfg.lang === 'fr-FR'
-    ? ['Joueur 1','Joueur 2','Joueur 3','Joueur 4']
-    : ['Player 1','Player 2','Player 3','Player 4'];
+  const ph   = ['Joueur 1','Joueur 2','Joueur 3','Joueur 4'];
   form.innerHTML = '';
   for (let i = 0; i < n; i++) {
     const d = document.createElement('div');
@@ -402,105 +454,83 @@ function buildInputs(n) {
 
 function startGame() {
   const inputs  = [...document.querySelectorAll('#players-form input')];
-  const ph = cfg.lang === 'fr-FR'
-    ? ['Joueur 1','Joueur 2','Joueur 3','Joueur 4']
-    : ['Player 1','Player 2','Player 3','Player 4'];
-  const players = inputs.map((inp, i) => inp.value.trim() || ph[i]);
+  const players = inputs.map((inp, i) => inp.value.trim() || `Joueur ${i + 1}`);
   initGame(players);
   show('s-game');
   render();
 }
 
-// ─────────────────────────────────────────────────────────
+// ──────────────────────────────────────────────────────────
 // GAME LOGIC
-// ─────────────────────────────────────────────────────────
+// ──────────────────────────────────────────────────────────
 function initGame(players) {
   G = {
     players,
     cur:    0,
-    darts:  0,
     marks:  Object.fromEntries(players.map(p => [p, Object.fromEntries(NUMS.map(n => [n, 0]))])),
     scores: Object.fromEntries(players.map(p => [p, 0])),
+    // hist : chaque entrée = { p, hits: [{number, mult, preM, preS}] }
+    // un "undo" annule la dernière annonce complète (une volée entière)
     hist:   [],
     winner: null,
   };
 }
 
 /**
- * Enregistre un lancer sur une case avec un multiplicateur.
- * @param {number|string} number - La case touchée (15-20 ou 'bull')
- * @param {number} mult - 1=simple, 2=double, 3=triple
+ * Applique une liste de touches issues d'une annonce vocale ou manuelle.
+ * @param {Array<{number, mult}>} hits
  */
-function applyDart(number, mult) {
-  if (!G || G.winner) return;
-  if (G.darts >= 3) {
-    setFb(cfg.lang === 'fr-FR' ? '3 fléchettes lancées — appuyez sur Suivant ➔' : '3 darts thrown — press Next ➔');
-    return;
-  }
+function applyHits(hits) {
+  if (!G || G.winner || !hits.length) return;
 
-  const p    = G.players[G.cur];
-  const preM = G.marks[p][number];
-  const preS = G.scores[p];
+  const p       = G.players[G.cur];
+  const snapshot = hits.map(({ number, mult }) => {
+    const preM = G.marks[p][number];
+    const preS = G.scores[p];
 
-  for (let i = 0; i < mult; i++) {
-    if (G.marks[p][number] < 3) {
-      G.marks[p][number]++;
-    } else {
-      // Case fermée → marquer si au moins un adversaire est encore ouvert
-      const anyOpen = G.players.filter(q => q !== p).some(q => G.marks[q][number] < 3);
-      if (anyOpen) G.scores[p] += VALS[number];
+    for (let i = 0; i < mult; i++) {
+      if (G.marks[p][number] < 3) {
+        G.marks[p][number]++;
+      } else {
+        const anyOpen = G.players.filter(q => q !== p).some(q => G.marks[q][number] < 3);
+        if (anyOpen) G.scores[p] += VALS[number];
+      }
     }
-  }
+    return { number, mult, preM, preS };
+  });
 
-  G.darts++;
-  G.hist.push({ p, number, mult, preM, preS });
+  G.hist.push({ p, snapshot });
   checkWin();
-  render();
-  if (G.darts >= 3 && !G.winner)
-    setFb(cfg.lang === 'fr-FR' ? '3 fléchettes — appuyez sur Suivant ➔' : '3 darts — press Next ➔');
-}
-
-/** Enregistre un lancer manqué (compte la fléchette, aucune marque). */
-function missDart() {
-  if (!G || G.winner || G.darts >= 3) return;
-  const p = G.players[G.cur];
-  G.darts++;
-  G.hist.push({ p, number: null, mult: 0, preM: null, preS: G.scores[p] });
-  render();
-  if (G.darts >= 3 && !G.winner)
-    setFb(cfg.lang === 'fr-FR' ? '3 fléchettes — appuyez sur Suivant ➔' : '3 darts — press Next ➔');
-}
-
-/** Annule le dernier lancer du joueur actif. */
-function undoLast() {
-  if (!G || !G.hist.length) return;
-  const last = G.hist[G.hist.length - 1];
-  if (last.p !== G.players[G.cur]) return; // sécurité : seulement le tour actif
-  G.hist.pop();
-  if (last.number !== null) {
-    G.marks[last.p][last.number] = last.preM;
-    G.scores[last.p]             = last.preS;
-  }
-  G.darts  = Math.max(0, G.darts - 1);
-  G.winner = null;
-  setFb('');
-  render();
-}
-
-/** Passe au joueur suivant (ou affiche les résultats si vainqueur). */
-function nextPlayer() {
-  if (!G) return;
-  if (G.winner) { showResult(); return; }
-  G.cur   = (G.cur + 1) % G.players.length;
-  G.darts = 0;
-  setFb('');
   render();
 }
 
 /**
- * Vérifie si un joueur a gagné.
- * Condition : toutes les cases fermées ET score >= tous les adversaires.
+ * Annule la dernière annonce complète (toute la volée, pas fléchette par fléchette).
  */
+function undoLast() {
+  if (!G || !G.hist.length) return;
+  const last = G.hist[G.hist.length - 1];
+  if (last.p !== G.players[G.cur]) return; // sécurité : tour actif uniquement
+
+  // Restaurer en ordre inverse
+  for (const { number, preM, preS } of [...last.snapshot].reverse()) {
+    G.marks[last.p][number] = preM;
+    G.scores[last.p]        = preS;
+  }
+  G.hist.pop();
+  G.winner = null;
+  setFb(''); hideTranscript();
+  render();
+}
+
+function nextPlayer() {
+  if (!G) return;
+  if (G.winner) { showResult(); return; }
+  G.cur = (G.cur + 1) % G.players.length;
+  setFb(''); hideTranscript();
+  render();
+}
+
 function checkWin() {
   for (const p of G.players) {
     if (!NUMS.every(n => G.marks[p][n] >= 3)) continue;
@@ -509,9 +539,9 @@ function checkWin() {
   }
 }
 
-// ─────────────────────────────────────────────────────────
+// ──────────────────────────────────────────────────────────
 // RENDERING
-// ─────────────────────────────────────────────────────────
+// ──────────────────────────────────────────────────────────
 function render() {
   renderScores();
   renderGrid();
@@ -554,12 +584,6 @@ function renderFooter() {
   const p = G.players[G.cur];
   document.getElementById('t-name').textContent = p;
 
-  // Indicateurs de fléchettes
-  document.getElementById('dart-pips').innerHTML = [0,1,2].map(i =>
-    `<span class="dart-pip${i < G.darts ? ' done' : ''}"></span>`
-  ).join('');
-
-  // Bouton suivant / résultats
   const nb = document.getElementById('next-btn');
   if (G.winner) {
     nb.textContent = '🏆 Résultats';
@@ -569,11 +593,11 @@ function renderFooter() {
     nb.classList.remove('result-ready');
   }
 
-  // Bouton annuler
+  // Undo actif seulement si la dernière entrée hist appartient au joueur actif
   const canUndo = G.hist.length > 0 && G.hist[G.hist.length - 1].p === p;
   document.getElementById('undo-btn').disabled = !canUndo;
 
-  // Boutons de saisie rapide
+  // Boutons de saisie manuelle rapide
   document.getElementById('nums-bar').innerHTML = NUMS.map(n => {
     const lbl = n === 'bull' ? '🎯' : n;
     return `<button class="numb" onclick="openModal('${n}')">${lbl}</button>`;
@@ -581,10 +605,10 @@ function renderFooter() {
 }
 
 /**
- * Génère le SVG de marquage papier fidèle :
- *   1 marque → ╱ (diagonale)
- *   2 marques → ✕ (croix)
- *   3 marques → ⊗ (croix entourée = fermé)
+ * Marques papier : ╱ → ✕ → ⊗
+ * 1 marque  = diagonale
+ * 2 marques = croix
+ * 3 marques = croix entourée (case fermée)
  */
 function markSVG(n) {
   const col = n >= 3 ? '#4ecca3' : '#eaeaea';
@@ -595,34 +619,35 @@ function markSVG(n) {
   return `<svg width="36" height="36" viewBox="0 0 36 36" xmlns="http://www.w3.org/2000/svg">${p}</svg>`;
 }
 
-// ─────────────────────────────────────────────────────────
+// ──────────────────────────────────────────────────────────
 // MODAL (saisie manuelle)
-// ─────────────────────────────────────────────────────────
+// ──────────────────────────────────────────────────────────
 function openModal(num) {
-  if (G.darts >= 3) {
-    setFb(cfg.lang === 'fr-FR' ? '3 fléchettes — appuyez sur Suivant ➔' : '3 darts — press Next ➔');
-    return;
-  }
   modalNum = num === 'bull' ? 'bull' : parseInt(num);
-  const lbl = num === 'bull' ? 'Bull' : num;
-  document.getElementById('modal-title').textContent =
-    cfg.lang === 'fr-FR' ? `Fléchette sur le ${lbl}` : `Dart on ${lbl}`;
+  const lbl = num === 'bull' ? 'Bull / Centre' : num;
+  document.getElementById('modal-title').textContent = `Fléchette sur le ${lbl}`;
   document.getElementById('modal').classList.add('open');
 }
-
 function closeModal() {
   document.getElementById('modal').classList.remove('open');
   modalNum = null;
 }
-
 function modalPick(mult) {
   closeModal();
-  mult === 0 ? missDart() : applyDart(modalNum, mult);
+  if (mult > 0) applyHits([{ number: modalNum, mult }]);
 }
 
-// ─────────────────────────────────────────────────────────
-// VOICE RECOGNITION — Web Speech API
-// ─────────────────────────────────────────────────────────
+// ──────────────────────────────────────────────────────────
+// VOICE RECOGNITION
+// Vocabulaire FR complet :
+//   Chiffres  : "15"/"quinze" … "20"/"vingt"
+//   Bull      : "bull", "bulle", "centre", "25"
+//   Dbl bull  : "double bull", "oeil de boeuf", "oeil", "50"
+//   Quantité  : "un/une/simple" = ×1
+//               "deux/double"   = ×2
+//               "trois/triple"  = ×3
+//   Commandes : "suivant", "terminé", "annuler"
+// ──────────────────────────────────────────────────────────
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 
 function toggleMic() {
@@ -637,72 +662,97 @@ function startRecog() {
   recog.maxAlternatives = 3;
   recog.continuous      = false;
 
-  recog.onstart  = () => {
+  recog.onstart = () => {
     recogOn = true;
     document.getElementById('mic-btn').classList.add('on');
     document.getElementById('mic-icon').textContent = '🔴';
-    document.getElementById('mic-lbl').textContent  = cfg.lang === 'fr-FR' ? 'Écoute…' : 'Listening…';
-    setFb(cfg.lang === 'fr-FR' ? '🎤 Annoncez vos lancers…' : '🎤 Announce your throws…');
+    document.getElementById('mic-lbl').textContent  = 'Écoute… annoncez votre volée';
+    document.getElementById('mic-hint').textContent = 'Parlez normalement, puis taisez-vous.';
+    setFb(''); hideTranscript();
   };
 
   recog.onresult = (e) => {
     const t = e.results[0][0].transcript;
-    setFb(`« ${t} »`);
+    showTranscript(t);
     processVoice(t);
   };
 
-  recog.onerror = (e) => { setFb(`❌ ${e.error}`); stopRecog(); };
-  recog.onend   = () => stopRecog();
+  recog.onerror = (e) => {
+    setFb(e.error === 'no-speech' ? 'Aucune parole détectée' : `❌ ${e.error}`);
+    stopRecog();
+  };
+  recog.onend = () => stopRecog();
   recog.start();
 }
 
 function stopRecog() {
   recogOn = false;
   try { recog?.stop(); } catch(e) {}
-  document.getElementById('mic-btn').classList.remove('on');
+  const btn = document.getElementById('mic-btn');
+  btn.classList.remove('on');
   document.getElementById('mic-icon').textContent = '🎤';
-  document.getElementById('mic-lbl').textContent  = cfg.lang === 'fr-FR' ? 'Annoncer' : 'Announce';
+  document.getElementById('mic-lbl').textContent  = 'Appuyez et annoncez votre volée';
+  document.getElementById('mic-hint').innerHTML   =
+    'Ex : « un 20, deux 18 » · « triple 20 » · « centre » · « oeil de boeuf »<br>Dites « suivant » pour passer au joueur suivant';
 }
 
-/** Parse et applique un transcript vocal complet ("double 20, un 17, rien"). */
 function processVoice(txt) {
   const t = txt.toLowerCase().normalize('NFC').trim();
 
-  if (/\b(annuler|cancel|undo|efface)\b/.test(t))              { undoLast();   return; }
-  if (/\b(suivant|next|valider|terminé|fini|done)\b/.test(t)) { nextPlayer(); return; }
+  // Commandes globales
+  if (/\b(annuler|undo|efface)\b/.test(t))              { undoLast();   return; }
+  if (/\b(suivant|next|terminé|termine|fini|done)\b/.test(t)) { nextPlayer(); return; }
 
-  const darts = parseAnnounce(t);
-  if (!darts.length) {
-    setFb(cfg.lang === 'fr-FR' ? '⚠ Non compris — saisissez manuellement' : '⚠ Not understood — use buttons');
+  const hits = parseAnnounce(t);
+
+  if (!hits.length) {
+    setFb('⚠ Non compris — réessayez ou utilisez les boutons');
     return;
   }
 
-  for (const d of darts) {
-    if (G.darts >= 3) break;
-    d.miss ? missDart() : applyDart(d.num, d.mult);
-  }
+  setFb('');
+  applyHits(hits);
 }
 
 /**
- * Découpe une annonce en liste de lancers individuels.
- * Entrée : "double 20, un 17, rien"
- * Sortie : [{num:20,mult:2}, {num:17,mult:1}, {miss:true}]
+ * Parse une annonce complète en liste de touches.
+ * "un 20, deux 18" → [{number:20, mult:1}, {number:18, mult:2}]
+ * "oeil de boeuf"  → [{number:'bull', mult:2}]
  */
 function parseAnnounce(t) {
-  return t
+  // Normaliser les séparateurs
+  const normalized = t
     .replace(/\s+(et|and|puis|then)\s+/g, ',')
     .split(/\s*[,;]\s*/)
     .map(s => s.trim())
-    .filter(Boolean)
-    .map(parseOne)
     .filter(Boolean);
+
+  return normalized.map(parseSegment).filter(Boolean);
 }
 
-/** Parse un segment unique : "double 20" → {num:20, mult:2}. */
-function parseOne(s) {
-  if (/^(rien|nothing|miss|manqué|manque|raté|rate|zéro|zero|à côté|raté|missed)$/.test(s))
-    return { miss: true };
+/**
+ * Parse un segment unique.
+ *
+ * Règle "deux 18" = "double 18" = 2 marques sur 18.
+ * Le mot numérique (deux, trois) précédant un nombre de cible
+ * est toujours interprété comme multiplicateur, jamais comme cible.
+ */
+function parseSegment(s) {
 
+  // ── Bull spéciaux (avant toute autre règle) ──────────────
+  // "oeil de boeuf" / "oeil de bœuf" / "oeil" = double bull (2 marques)
+  if (/\b(oeil de b[oe]euf|oeil de boeuf|oeil)\b/.test(s))
+    return { number: 'bull', mult: 2 };
+
+  // "double bull" / "double centre" = 2 marques
+  if (/\b(double\s+bull|double\s+bulle|double\s+centre)\b/.test(s))
+    return { number: 'bull', mult: 2 };
+
+  // "bull" / "bulle" / "centre" seul = 1 marque
+  if (/^(bull|bulle|centre|25)$/.test(s))
+    return { number: 'bull', mult: 1 };
+
+  // ── Extraction du multiplicateur ─────────────────────────
   let mult = 1;
   let r    = s;
 
@@ -716,26 +766,29 @@ function parseOne(s) {
 
   r = r.trim();
 
-  const MAP = {
-    '15':15,'quinze':15,'fifteen':15,
-    '16':16,'seize':16,'sixteen':16,
-    '17':17,'dix-sept':17,'dix sept':17,'seventeen':17,
-    '18':18,'dix-huit':18,'dix huit':18,'eighteen':18,
-    '19':19,'dix-neuf':19,'dix neuf':19,'nineteen':19,
-    '20':20,'vingt':20,'twenty':20,
-    'bull':'bull','bulle':'bull','25':'bull',
-    'bullseye':'bull',"bull's eye":'bull','bulls eye':'bull',
+  // ── Reconnaissance du numéro de case ─────────────────────
+  const NUM_MAP = {
+    '15':15, 'quinze':15,    'fifteen':15,
+    '16':16, 'seize':16,     'sixteen':16,
+    '17':17, 'dix-sept':17,  'dix sept':17,  'seventeen':17,
+    '18':18, 'dix-huit':18,  'dix huit':18,  'eighteen':18,
+    '19':19, 'dix-neuf':19,  'dix neuf':19,  'nineteen':19,
+    '20':20, 'vingt':20,     'twenty':20,
+    // Bull sans multiplicateur explicite (ex: "un centre")
+    'bull':'bull', 'bulle':'bull', 'centre':'bull',
+    '50':'bull',  // double bull valeur
   };
 
-  for (const [k, v] of Object.entries(MAP)) {
-    if (r === k || r.startsWith(k + ' ')) return { num: v, mult };
+  for (const [k, v] of Object.entries(NUM_MAP)) {
+    if (r === k || r.startsWith(k + ' ')) return { number: v, mult };
   }
-  return null;
+
+  return null; // non reconnu
 }
 
-// ─────────────────────────────────────────────────────────
-// RESULT SCREEN
-// ─────────────────────────────────────────────────────────
+// ──────────────────────────────────────────────────────────
+// RESULT
+// ──────────────────────────────────────────────────────────
 function showResult() {
   const sorted = [...G.players].sort((a, b) => {
     const ac = NUMS.every(n => G.marks[a][n] >= 3);
@@ -757,41 +810,42 @@ function showResult() {
   show('s-result');
 }
 
-function playAgain() {
-  initGame([...G.players].reverse());
-  show('s-game');
-  render();
-}
+function playAgain() { initGame([...G.players].reverse()); show('s-game'); render(); }
+function newGame()   { show('s-setup'); }
 
-function newGame() { show('s-setup'); }
-
-// ─────────────────────────────────────────────────────────
+// ──────────────────────────────────────────────────────────
 // UTILS
-// ─────────────────────────────────────────────────────────
+// ──────────────────────────────────────────────────────────
 function show(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById(id).classList.add('active');
 }
-function setFb(msg) { document.getElementById('feedback').textContent = msg; }
-function trunc(s, n) { return s.length > n ? s.slice(0, n) + '…' : s; }
+function setFb(msg)        { document.getElementById('feedback').textContent = msg; }
+function showTranscript(t) {
+  const bar = document.getElementById('transcript-bar');
+  document.getElementById('transcript-text').textContent = t;
+  bar.classList.add('visible');
+}
+function hideTranscript()  { document.getElementById('transcript-bar').classList.remove('visible'); }
+function trunc(s, n)       { return s.length > n ? s.slice(0, n) + '…' : s; }
 function esc(s) {
   return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
-// ─────────────────────────────────────────────────────────
-// SERVICE WORKER REGISTRATION
-// ─────────────────────────────────────────────────────────
+// ──────────────────────────────────────────────────────────
+// SERVICE WORKER
+// ──────────────────────────────────────────────────────────
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('./sw.js')
-      .then(() => console.log('[SW] Enregistré — mode offline actif'))
-      .catch(err  => console.warn('[SW] Échec :', err));
+      .then(() => console.log('[SW] Offline actif'))
+      .catch(e  => console.warn('[SW] Échec :', e));
   });
 }
 
-// ─────────────────────────────────────────────────────────
+// ──────────────────────────────────────────────────────────
 // INIT
-// ─────────────────────────────────────────────────────────
+// ──────────────────────────────────────────────────────────
 buildInputs(cfg.count);
 </script>
 </body>
