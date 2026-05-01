@@ -1,7 +1,7 @@
 <!-- Chemin : /index.html -->
 <!-- Rôle   : Application principale — SPA Cricket Fléchettes (MVP v3) -->
 <!-- Stack  : HTML / CSS / JS vanilla — PWA offline-ready              -->
-<!-- v3.2   : Système de log vocal — persistance localStorage + export JSON -->
+<!-- v3.3   : Statut partial, splitMult3, splitCompound, centres/cents bull -->
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -205,8 +205,9 @@
       border-left: 3px solid var(--border); padding: 10px 12px;
       display: flex; flex-direction: column; gap: 4px;
     }
-    .log-entry.ok   { border-left-color: var(--green); }
-    .log-entry.fail { border-left-color: var(--accent); }
+    .log-entry.ok      { border-left-color: var(--green); }
+    .log-entry.partial { border-left-color: var(--amber); }
+    .log-entry.fail    { border-left-color: var(--accent); }
     .log-entry .le-meta  { font-size: 10px; color: var(--dim); display: flex; gap: 8px; }
     .log-entry .le-raw   { font-size: 13px; font-style: italic; color: var(--text); }
     .log-entry .le-hits  { font-size: 13px; font-weight: 600; color: var(--green); }
@@ -579,25 +580,36 @@ function processVoice(raw) {
   if (/\b(annuler|undo|efface)\b/.test(t))                   { undoLast();   return; }
   if (/\b(suivant|next|termine|fini|done|valide)\b/.test(t)) { nextPlayer(); return; }
 
-  const hits = parseAnnounce(t);
+  const { hits, lost } = parseAnnounce(t);
+  const partial = hits.length > 0 && lost > 0;
 
   if (!hits.length) {
-    logEntry(raw, []);
+    logEntry(raw, [], 'fail');
     setFb('⚠ Non compris — réessayez ou utilisez les boutons');
     document.getElementById('transcript-hits').textContent = '';
     return;
   }
 
-  // Feedback positif
+  // Feedback positif / partiel
   const LABELS = { bull: 'Centre' };
   const summary = hits.map(h => {
     const n = LABELS[h.number] || h.number;
     const m = h.mult === 1 ? '×1' : h.mult === 2 ? '×2' : '×3';
     return `${m} ${n}`;
   }).join('  ·  ');
-  document.getElementById('transcript-hits').textContent = '✓ ' + summary;
-  setFb('');
-  logEntry(raw, hits);
+
+  const hitsEl = document.getElementById('transcript-hits');
+  if (partial) {
+    hitsEl.textContent = `⚠ Partiel : ${summary}`;
+    hitsEl.style.color = 'var(--amber)';
+    setFb(`${lost} lancer(s) non compris — vérifiez la grille`);
+  } else {
+    hitsEl.textContent = `✓ ${summary}`;
+    hitsEl.style.color = 'var(--green)';
+    setFb('');
+  }
+
+  logEntry(raw, hits, partial ? 'partial' : 'ok');
   applyHits(hits);
 }
 
@@ -631,75 +643,84 @@ function normalize(s) {
 
 /**
  * Découpe l'annonce sur virgules / "et" / "puis",
- * puis parse chaque segment. Retourne un tableau plat de {number, mult}.
+ * puis parse chaque segment.
+ * Retourne { hits: [{number,mult}], lost: number }
  */
 function parseAnnounce(t) {
-  return t
+  const results = t
     .replace(/\s+(et|and|puis|then)\s+/g, ',')
     .split(/\s*[,;]\s*/)
     .map(s => s.trim()).filter(Boolean)
-    .flatMap(parseSegment);
+    .map(parseSegment);
+
+  return {
+    hits: results.flatMap(r => r.hits),
+    lost: results.reduce((acc, r) => acc + r.lost, 0),
+  };
 }
 
 /**
  * Parse un segment en une ou plusieurs touches.
- * Approche : tokeniser → parcourir token par token.
+ * Retourne { hits, lost } où lost = nb de tokens non résolus.
  */
 function parseSegment(s) {
   s = normalize(s);
 
   // ── Cas spéciaux bull (priorité absolue) ────────────────
-  // Œil de bœuf → normalisé en "oeil de boeuf"
-  if (/\b(oeil\s+de\s+b[o]?euf|oeil\s+de\s+boeuf|oeil)\b/.test(s))
-    return [{ number:'bull', mult:2 }];
+  if (/\b(oeil\s+de\s+b[o]?euf|oeil)\b/.test(s))
+    return { hits:[{ number:'bull', mult:2 }], lost:0 };
   if (/\b(double\s+bull|double\s+bulle|double\s+centre)\b/.test(s))
-    return [{ number:'bull', mult:2 }];
-  if (/^(bull|bulle|centre|25)$/.test(s))
-    return [{ number:'bull', mult:1 }];
+    return { hits:[{ number:'bull', mult:2 }], lost:0 };
+  // Pluriels "centres" + alias phonétiques "cents", "san", "sente"
+  if (/^(bull|bulle|centres?|cents?|san|sente|25)$/.test(s))
+    return { hits:[{ number:'bull', mult:1 }], lost:0 };
 
   // ── Nettoyage tokens ─────────────────────────────────────
-  // Mots parasites à ignorer
-  const NOISE = new Set(['a','au','le','la','les','sur','dans','en','mon','son','ou','or','mais','un']);
-  // Note : "un" retiré du NOISE car c'est un multiplicateur — géré dans parseMult
+  const NOISE = new Set(['a','au','le','la','les','sur','dans','mon','son','ou','or','mais']);
 
   const tokens = s
     .split(/\s+/)
     .filter(Boolean)
-    // Supprime préfixe lettres parasites devant un nombre à 2 chiffres (N19→19, en18→18)
+    // Supprime préfixe lettres parasites (N19→19, en18→18)
     .map(t => t.replace(/^[a-z]{1,2}(\d{2})$/, '$1'))
-    // Découpe les suites de chiffres collés ("191816" → ["19","18","16"])
+    // Découpe les suites de chiffres collés ≥ 4 chars ("191816"→["19","18","16"])
     .flatMap(t => /^\d{4,}$/.test(t) ? splitDigitRun(t) : [t])
-    // Supprime les mots parasites purs (pas les chiffres)
+    // Découpe les tokens 3 chars mult+case ("315"→["3","15"], "120"→["1","20"])
+    .flatMap(t => /^\d{3}$/.test(t) ? splitMult3(t) : [t])
+    // Découpe les tokens composés collés ("devin"→["de","vin"])
+    .flatMap(t => splitCompound(t))
+    // Supprime les mots parasites
     .filter(t => !/^\d+$/.test(t) ? !NOISE.has(t) : true);
 
   const hits = [];
+  let lost = 0;
   let i = 0;
 
   while (i < tokens.length) {
     const mult = parseMult(tokens[i]);
 
     if (mult !== null) {
-      // Token courant = multiplicateur → le suivant doit être un numéro
       const num = parseNum(tokens, i + 1);
       if (num) {
         hits.push({ number: num.value, mult });
         i += 1 + num.consumed;
       } else {
-        i++; // multiplicateur orphelin
+        lost++; i++; // multiplicateur orphelin
       }
     } else {
-      // Token courant = peut-être un numéro seul (×1 implicite)
       const num = parseNum(tokens, i);
       if (num) {
         hits.push({ number: num.value, mult: 1 });
         i += num.consumed;
       } else {
+        // Token non résolu — compte comme perdu seulement s'il ressemble à un nombre
+        if (/\d/.test(tokens[i])) lost++;
         i++;
       }
     }
   }
 
-  return hits;
+  return { hits, lost };
 }
 
 /**
@@ -715,22 +736,52 @@ function parseMult(tok) {
 }
 
 /**
- * Tente de découper une suite de chiffres collés en numéros de cases valides.
- * Ex : "191816" → ["19","18","16"]
- * Ex : "2018"   → ["20","18"]
- * Retourne le tableau original si le découpage échoue.
+ * Découpe une suite ≥4 chiffres en numéros de cases valides.
+ * "191816" → ["19","18","16"] | "1716300" → ["17","16"] (300 ignoré)
  */
 function splitDigitRun(s) {
   const VALID = new Set([15,16,17,18,19,20]);
   const result = [];
   let i = 0;
   while (i < s.length) {
-    if (i + 1 >= s.length) return [s]; // chiffre isolé non découpable
+    if (i + 1 >= s.length) break; // chiffre isolé → stop (ne bloque plus)
     const two = parseInt(s.slice(i, i + 2), 10);
     if (VALID.has(two)) { result.push(String(two)); i += 2; }
-    else return [s]; // ne colle pas → on abandonne
+    else { i++; } // caractère non reconnu → on avance sans bloquer
   }
   return result.length ? result : [s];
+}
+
+/**
+ * Token 3 chiffres : tente mult (1-3) + numéro de case (15-20).
+ * "315" → ["3","15"] | "120" → ["1","20"] | "319" → ["319"] (19 ok mais 3 comme mult)
+ */
+function splitMult3(s) {
+  const VALID = new Set(['15','16','17','18','19','20']);
+  const m = s[0];
+  const n = s.slice(1);
+  if (/^[123]$/.test(m) && VALID.has(n)) return [m, n];
+  return [s];
+}
+
+/**
+ * Découpe les tokens composés collés issus de la reco vocale.
+ * "devin"   → ["de","vin"]   (deux vingt = ×2 20)
+ * "unvin"   → ["un","vin"]   (un vingt  = ×1 20)
+ * "troisvin"→ ["trois","vin"] (triple 20)
+ * Autres    → [token inchangé]
+ */
+function splitCompound(t) {
+  const MULTS = ['trois','triple','deux','double','de','di','un','une'];
+  const NUMS  = ['vingt','vin','quinze','seize','dix-sept','dix-huit','dix-neuf',
+                 'centre','bulle','bull','fifteen','sixteen','seventeen','eighteen','nineteen','twenty'];
+  for (const m of MULTS) {
+    if (t.startsWith(m) && t.length > m.length) {
+      const rest = t.slice(m.length);
+      if (NUMS.some(n => rest === n || rest.startsWith(n))) return [m, rest];
+    }
+  }
+  return [t];
 }
 
 /**
@@ -780,19 +831,19 @@ function saveLog(entries) { try { localStorage.setItem(LOG_KEY, JSON.stringify(e
 
 /**
  * Enregistre une tentative vocale.
- * @param {string} raw   - transcript brut de la reco
- * @param {Array}  hits  - tableau de {number, mult} ou [] si échec
+ * @param {string} raw    - transcript brut
+ * @param {Array}  hits   - touches parsées
+ * @param {string} status - 'ok' | 'partial' | 'fail'
  */
-function logEntry(raw, hits) {
+function logEntry(raw, hits, status = 'fail') {
   const entries = loadLog();
   entries.unshift({
     ts:     new Date().toISOString(),
     player: G ? G.players[G.cur] : '—',
-    raw,
-    hits,
-    ok:     hits.length > 0,
+    raw, hits, status,
+    // Rétrocompat : ok = true si ok ou partial
+    ok: status !== 'fail',
   });
-  // Garde les 500 dernières entrées
   if (entries.length > 500) entries.length = 500;
   saveLog(entries);
 }
@@ -800,44 +851,43 @@ function logEntry(raw, hits) {
 function showLog() {
   const entries = loadLog();
   const total   = entries.length;
-  const ok      = entries.filter(e => e.ok).length;
-  const fail    = total - ok;
+  const ok      = entries.filter(e => e.status === 'ok').length;
+  const partial = entries.filter(e => e.status === 'partial').length;
+  const fail    = entries.filter(e => e.status === 'fail').length;
   const rate    = total ? Math.round((ok / total) * 100) : 0;
 
-  // Stats
   document.getElementById('log-stats').innerHTML = `
-    <div class="log-stat"><div class="ls-val">${total}</div><div class="ls-lbl">Tentatives</div></div>
-    <div class="log-stat"><div class="ls-val" style="color:var(--green)">${ok}</div><div class="ls-lbl">Réussies</div></div>
-    <div class="log-stat"><div class="ls-val" style="color:var(--accent)">${fail}</div><div class="ls-lbl">Échecs</div></div>
+    <div class="log-stat"><div class="ls-val">${total}</div><div class="ls-lbl">Total</div></div>
+    <div class="log-stat"><div class="ls-val" style="color:var(--green)">${ok}</div><div class="ls-lbl">OK</div></div>
+    <div class="log-stat"><div class="ls-val" style="color:var(--amber)">${partial}</div><div class="ls-lbl">Partiel</div></div>
+    <div class="log-stat"><div class="ls-val" style="color:var(--accent)">${fail}</div><div class="ls-lbl">Échec</div></div>
     <div class="log-stat"><div class="ls-val">${rate}%</div><div class="ls-lbl">Taux OK</div></div>
   `;
 
-  // Entrées
   if (!entries.length) {
     document.getElementById('log-body').innerHTML =
       '<div class="log-empty">Aucune tentative vocale enregistrée.</div>';
   } else {
+    const LABELS = { bull:'Centre' };
     document.getElementById('log-body').innerHTML = entries.map(e => {
-      const d    = new Date(e.ts);
-      const time = d.toLocaleDateString('fr-FR') + ' ' + d.toLocaleTimeString('fr-FR', { hour:'2-digit', minute:'2-digit', second:'2-digit' });
-      const LABELS = { bull:'Centre' };
-      const hitsStr = e.hits.map(h => {
+      const d      = new Date(e.ts);
+      const time   = d.toLocaleDateString('fr-FR') + ' ' + d.toLocaleTimeString('fr-FR', { hour:'2-digit', minute:'2-digit', second:'2-digit' });
+      const status = e.status || (e.ok ? 'ok' : 'fail'); // rétrocompat
+      const hitsStr = (e.hits || []).map(h => {
         const n = LABELS[h.number] || h.number;
-        const m = h.mult === 1 ? '×1' : h.mult === 2 ? '×2' : '×3';
+        const m = ['','×1','×2','×3'][h.mult] || `×${h.mult}`;
         return `${m} ${n}`;
       }).join('  ·  ');
 
+      const badge = status === 'ok'      ? `<div class="le-hits">✓ ${esc(hitsStr)}</div>`
+                  : status === 'partial' ? `<div class="le-hits" style="color:var(--amber)">⚠ Partiel : ${esc(hitsStr)}</div>`
+                  :                       `<div class="le-fail">✗ Non compris</div>`;
+
       return `
-        <div class="log-entry ${e.ok ? 'ok' : 'fail'}">
-          <div class="le-meta">
-            <span>${time}</span>
-            <span>👤 ${esc(e.player)}</span>
-          </div>
+        <div class="log-entry ${status}">
+          <div class="le-meta"><span>${time}</span><span>👤 ${esc(e.player)}</span></div>
           <div class="le-raw">« ${esc(e.raw)} »</div>
-          ${e.ok
-            ? `<div class="le-hits">✓ ${esc(hitsStr)}</div>`
-            : `<div class="le-fail">⚠ Non compris</div>`
-          }
+          ${badge}
         </div>
       `;
     }).join('');
