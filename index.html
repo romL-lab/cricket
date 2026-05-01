@@ -1,7 +1,7 @@
 <!-- Chemin : /index.html -->
 <!-- Rôle   : Application principale — SPA Cricket Fléchettes (MVP v3) -->
 <!-- Stack  : HTML / CSS / JS vanilla — PWA offline-ready              -->
-<!-- v3.1   : Parser vocal — fix pluriels (triples/doubles) + digit-run (191816) -->
+<!-- v3.2   : Système de log vocal — persistance localStorage + export JSON -->
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -169,6 +169,49 @@
     .sheet-opt .olabel { font-size: 11px; font-weight: 500; color: var(--dim); text-transform: uppercase; letter-spacing: .5px; }
     .sheet-cancel { width: 100%; margin-top: 10px; padding: 14px; background: transparent; border: 1px solid var(--border); border-radius: var(--radius); color: var(--dim); font-size: 15px; cursor: pointer; }
 
+    /* ── LOG SCREEN ── */
+    .log-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 16px; background: var(--surface);
+      border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 10;
+    }
+    .log-header h2 { font-size: 18px; font-weight: 800; }
+    .log-actions { display: flex; gap: 8px; }
+    .log-action-btn {
+      padding: 8px 14px; border-radius: 8px; border: 1px solid var(--border);
+      background: transparent; color: var(--dim); font-size: 13px; font-weight: 600;
+      cursor: pointer; transition: all .2s;
+    }
+    .log-action-btn:hover { border-color: var(--green); color: var(--green); }
+    .log-action-btn.danger:hover { border-color: var(--accent); color: var(--accent); }
+    .log-back {
+      padding: 8px 14px; border-radius: 8px; border: none;
+      background: var(--accent); color: #fff; font-size: 13px; font-weight: 700;
+      cursor: pointer;
+    }
+    .log-body { flex: 1; overflow-y: auto; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
+    .log-empty { text-align: center; color: var(--dim); font-size: 14px; padding: 60px 20px; }
+    .log-stats {
+      display: flex; gap: 10px; padding: 10px 12px 2px; flex-wrap: wrap;
+    }
+    .log-stat {
+      flex: 1; min-width: 80px; background: var(--surface); border-radius: 10px;
+      padding: 10px 12px; text-align: center;
+    }
+    .log-stat .ls-val { font-size: 22px; font-weight: 800; }
+    .log-stat .ls-lbl { font-size: 10px; color: var(--dim); text-transform: uppercase; letter-spacing: .5px; margin-top: 2px; }
+    .log-entry {
+      background: var(--surface); border-radius: var(--radius);
+      border-left: 3px solid var(--border); padding: 10px 12px;
+      display: flex; flex-direction: column; gap: 4px;
+    }
+    .log-entry.ok   { border-left-color: var(--green); }
+    .log-entry.fail { border-left-color: var(--accent); }
+    .log-entry .le-meta  { font-size: 10px; color: var(--dim); display: flex; gap: 8px; }
+    .log-entry .le-raw   { font-size: 13px; font-style: italic; color: var(--text); }
+    .log-entry .le-hits  { font-size: 13px; font-weight: 600; color: var(--green); }
+    .log-entry .le-fail  { font-size: 12px; color: var(--accent); }
+
     /* ── RESULT ── */
     .result-wrap { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100dvh; padding: 40px 24px; gap: 24px; text-align: center; }
     .r-trophy { font-size: 72px; }
@@ -216,7 +259,10 @@
 <!-- ════════ GAME ════════ -->
 <div id="s-game" class="screen">
   <div class="game-header">
-    <div class="scores-bar" id="scores-bar"></div>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+      <div class="scores-bar" id="scores-bar" style="flex:1"></div>
+      <button onclick="showLog()" title="Journal vocal" style="background:none;border:1px solid var(--border);border-radius:8px;padding:4px 10px;color:var(--dim);font-size:18px;cursor:pointer;flex-shrink:0">📋</button>
+    </div>
   </div>
   <div class="grid-wrap">
     <table class="cgrid" id="cgrid"></table>
@@ -264,6 +310,20 @@
     <button class="r-btn primary" onclick="playAgain()">Revanche 🔁</button>
     <button class="r-btn secondary" onclick="newGame()">Nouvelle partie</button>
   </div>
+</div>
+
+<!-- ════════ LOG ════════ -->
+<div id="s-log" class="screen">
+  <div class="log-header">
+    <h2>📋 Journal vocal</h2>
+    <div class="log-actions">
+      <button class="log-action-btn" onclick="exportLog()">⬇ Export JSON</button>
+      <button class="log-action-btn danger" onclick="clearLog()">🗑 Vider</button>
+      <button class="log-back" onclick="show('s-game')">← Retour</button>
+    </div>
+  </div>
+  <div class="log-stats" id="log-stats"></div>
+  <div class="log-body" id="log-body"></div>
 </div>
 
 <!-- ════════ MODAL ════════ -->
@@ -522,12 +582,13 @@ function processVoice(raw) {
   const hits = parseAnnounce(t);
 
   if (!hits.length) {
+    logEntry(raw, []);
     setFb('⚠ Non compris — réessayez ou utilisez les boutons');
     document.getElementById('transcript-hits').textContent = '';
     return;
   }
 
-  // Feedback positif : affiche ce qui a été compris
+  // Feedback positif
   const LABELS = { bull: 'Centre' };
   const summary = hits.map(h => {
     const n = LABELS[h.number] || h.number;
@@ -536,6 +597,7 @@ function processVoice(raw) {
   }).join('  ·  ');
   document.getElementById('transcript-hits').textContent = '✓ ' + summary;
   setFb('');
+  logEntry(raw, hits);
   applyHits(hits);
 }
 
@@ -705,6 +767,100 @@ function parseNum(tokens, i) {
   if (ONE_MAP[t0] !== undefined) return { value: ONE_MAP[t0], consumed: 1 };
 
   return null;
+}
+
+// ═══════════════════════════════════════════════════════
+// LOG VOCAL — persistance localStorage
+// Chaque entrée : { ts, raw, hits, ok, player }
+// ═══════════════════════════════════════════════════════
+const LOG_KEY = 'cricket-voice-log';
+
+function loadLog()        { try { return JSON.parse(localStorage.getItem(LOG_KEY) || '[]'); } catch { return []; } }
+function saveLog(entries) { try { localStorage.setItem(LOG_KEY, JSON.stringify(entries)); } catch {} }
+
+/**
+ * Enregistre une tentative vocale.
+ * @param {string} raw   - transcript brut de la reco
+ * @param {Array}  hits  - tableau de {number, mult} ou [] si échec
+ */
+function logEntry(raw, hits) {
+  const entries = loadLog();
+  entries.unshift({
+    ts:     new Date().toISOString(),
+    player: G ? G.players[G.cur] : '—',
+    raw,
+    hits,
+    ok:     hits.length > 0,
+  });
+  // Garde les 500 dernières entrées
+  if (entries.length > 500) entries.length = 500;
+  saveLog(entries);
+}
+
+function showLog() {
+  const entries = loadLog();
+  const total   = entries.length;
+  const ok      = entries.filter(e => e.ok).length;
+  const fail    = total - ok;
+  const rate    = total ? Math.round((ok / total) * 100) : 0;
+
+  // Stats
+  document.getElementById('log-stats').innerHTML = `
+    <div class="log-stat"><div class="ls-val">${total}</div><div class="ls-lbl">Tentatives</div></div>
+    <div class="log-stat"><div class="ls-val" style="color:var(--green)">${ok}</div><div class="ls-lbl">Réussies</div></div>
+    <div class="log-stat"><div class="ls-val" style="color:var(--accent)">${fail}</div><div class="ls-lbl">Échecs</div></div>
+    <div class="log-stat"><div class="ls-val">${rate}%</div><div class="ls-lbl">Taux OK</div></div>
+  `;
+
+  // Entrées
+  if (!entries.length) {
+    document.getElementById('log-body').innerHTML =
+      '<div class="log-empty">Aucune tentative vocale enregistrée.</div>';
+  } else {
+    document.getElementById('log-body').innerHTML = entries.map(e => {
+      const d    = new Date(e.ts);
+      const time = d.toLocaleDateString('fr-FR') + ' ' + d.toLocaleTimeString('fr-FR', { hour:'2-digit', minute:'2-digit', second:'2-digit' });
+      const LABELS = { bull:'Centre' };
+      const hitsStr = e.hits.map(h => {
+        const n = LABELS[h.number] || h.number;
+        const m = h.mult === 1 ? '×1' : h.mult === 2 ? '×2' : '×3';
+        return `${m} ${n}`;
+      }).join('  ·  ');
+
+      return `
+        <div class="log-entry ${e.ok ? 'ok' : 'fail'}">
+          <div class="le-meta">
+            <span>${time}</span>
+            <span>👤 ${esc(e.player)}</span>
+          </div>
+          <div class="le-raw">« ${esc(e.raw)} »</div>
+          ${e.ok
+            ? `<div class="le-hits">✓ ${esc(hitsStr)}</div>`
+            : `<div class="le-fail">⚠ Non compris</div>`
+          }
+        </div>
+      `;
+    }).join('');
+  }
+
+  show('s-log');
+}
+
+function exportLog() {
+  const entries = loadLog();
+  const blob    = new Blob([JSON.stringify(entries, null, 2)], { type: 'application/json' });
+  const url     = URL.createObjectURL(blob);
+  const a       = document.createElement('a');
+  a.href        = url;
+  a.download    = `cricket-voice-log-${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function clearLog() {
+  if (!confirm('Vider tout le journal ?')) return;
+  saveLog([]);
+  showLog();
 }
 
 // ═══════════════════════════════════════════════════════
