@@ -1,7 +1,7 @@
 <!-- Chemin : /index.html -->
 <!-- Rôle   : Application principale — SPA Cricket Fléchettes (MVP v3) -->
 <!-- Stack  : HTML / CSS / JS vanilla — PWA offline-ready              -->
-<!-- v3     : Parser vocal token-by-token, robuste aux erreurs de reco -->
+<!-- v3.1   : Parser vocal — fix pluriels (triples/doubles) + digit-run (191816) -->
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -605,6 +605,8 @@ function parseSegment(s) {
     .filter(Boolean)
     // Supprime préfixe lettres parasites devant un nombre à 2 chiffres (N19→19, en18→18)
     .map(t => t.replace(/^[a-z]{1,2}(\d{2})$/, '$1'))
+    // Découpe les suites de chiffres collés ("191816" → ["19","18","16"])
+    .flatMap(t => /^\d{4,}$/.test(t) ? splitDigitRun(t) : [t])
     // Supprime les mots parasites purs (pas les chiffres)
     .filter(t => !/^\d+$/.test(t) ? !NOISE.has(t) : true);
 
@@ -640,15 +642,33 @@ function parseSegment(s) {
 
 /**
  * Reconnaît un multiplicateur depuis un token.
- * "de" → 2  (fréquent : reco transforme "deux" en "de")
- * "un" → 1  (mais attention : peut être parasite)
+ * Gère les pluriels (triples, doubles, simples) et alias de reco.
  */
 function parseMult(tok) {
   if (!tok) return null;
-  if (/^(un|une|simple|single|1)$/.test(tok))          return 1;
-  if (/^(deux|de|double|di|d|2)$/.test(tok))           return 2;  // "de","di","d" = "deux" mal reconnu
-  if (/^(trois|triple|treble|tri|tr|3)$/.test(tok))    return 3;
+  if (/^(un|une|simples?|singles?|1)$/.test(tok))       return 1;
+  if (/^(deux|de|doubles?|di|d|2)$/.test(tok))          return 2;  // "de","di" = "deux" mal reconnu
+  if (/^(trois|triples?|trebles?|tri|tr|3)$/.test(tok)) return 3;  // "triples" pluriel géré
   return null;
+}
+
+/**
+ * Tente de découper une suite de chiffres collés en numéros de cases valides.
+ * Ex : "191816" → ["19","18","16"]
+ * Ex : "2018"   → ["20","18"]
+ * Retourne le tableau original si le découpage échoue.
+ */
+function splitDigitRun(s) {
+  const VALID = new Set([15,16,17,18,19,20]);
+  const result = [];
+  let i = 0;
+  while (i < s.length) {
+    if (i + 1 >= s.length) return [s]; // chiffre isolé non découpable
+    const two = parseInt(s.slice(i, i + 2), 10);
+    if (VALID.has(two)) { result.push(String(two)); i += 2; }
+    else return [s]; // ne colle pas → on abandonne
+  }
+  return result.length ? result : [s];
 }
 
 /**
