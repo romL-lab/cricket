@@ -1,7 +1,7 @@
 <!-- Chemin : /index.html -->
 <!-- Rôle   : Application principale — SPA Cricket Fléchettes (MVP v3) -->
 <!-- Stack  : HTML / CSS / JS vanilla — PWA offline-ready              -->
-<!-- v3.3   : Statut partial, splitMult3, splitCompound, centres/cents bull -->
+<!-- v3.4   : boules/bulles/centres bull, rien=ok, oeil+centre même segment, orphelin fin -->
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -580,6 +580,15 @@ function processVoice(raw) {
   if (/\b(annuler|undo|efface)\b/.test(t))                   { undoLast();   return; }
   if (/\b(suivant|next|termine|fini|done|valide)\b/.test(t)) { nextPlayer(); return; }
 
+  // "rien" = volée vide valide (toutes les fléchettes ratées), pas une erreur
+  if (/^\s*(rien|nothing|miss|rate|rate|manque|manque|raté)\s*$/.test(t)) {
+    document.getElementById('transcript-hits').textContent = '✓ Rien (volée vide)';
+    document.getElementById('transcript-hits').style.color = 'var(--green)';
+    setFb('');
+    logEntry(raw, [], 'ok');
+    return;
+  }
+
   const { hits, lost } = parseAnnounce(t);
   const partial = hits.length > 0 && lost > 0;
 
@@ -666,30 +675,28 @@ function parseAnnounce(t) {
 function parseSegment(s) {
   s = normalize(s);
 
-  // ── Cas spéciaux bull (priorité absolue) ────────────────
-  if (/\b(oeil\s+de\s+b[o]?euf|oeil)\b/.test(s))
-    return { hits:[{ number:'bull', mult:2 }], lost:0 };
-  if (/\b(double\s+bull|double\s+bulle|double\s+centre)\b/.test(s))
-    return { hits:[{ number:'bull', mult:2 }], lost:0 };
-  // Pluriels "centres" + alias phonétiques "cents", "san", "sente"
-  if (/^(bull|bulle|centres?|cents?|san|sente|25)$/.test(s))
+  // ── Pré-traitement : remplace les expressions multi-mots bull par tokens ──
+  // "oeil de boeuf" / "oeil" → DBULL (= 2 marques sur bull, fixe)
+  s = s.replace(/\b(oeil\s+de\s+b[oe]+f)\b/g, 'DBULL');
+  s = s.replace(/\boeil\b/g, 'DBULL');
+  // "double bull/bulle/centre" → DBULL
+  s = s.replace(/\b(double\s+bull|double\s+bulle|double\s+centre)\b/g, 'DBULL');
+
+  // ── Segment = uniquement bull seul (sans modificateur) ──────────────────
+  // Pluriels, alias phonétiques
+  if (/^(bull|bulles?|boules?|bulle|centres?|cents?|san|sente|25|50)$/.test(s))
     return { hits:[{ number:'bull', mult:1 }], lost:0 };
 
-  // ── Nettoyage tokens ─────────────────────────────────────
+  // ── Nettoyage tokens ─────────────────────────────────────────────────────
   const NOISE = new Set(['a','au','le','la','les','sur','dans','mon','son','ou','or','mais']);
 
   const tokens = s
     .split(/\s+/)
     .filter(Boolean)
-    // Supprime préfixe lettres parasites (N19→19, en18→18)
     .map(t => t.replace(/^[a-z]{1,2}(\d{2})$/, '$1'))
-    // Découpe les suites de chiffres collés ≥ 4 chars ("191816"→["19","18","16"])
     .flatMap(t => /^\d{4,}$/.test(t) ? splitDigitRun(t) : [t])
-    // Découpe les tokens 3 chars mult+case ("315"→["3","15"], "120"→["1","20"])
     .flatMap(t => /^\d{3}$/.test(t) ? splitMult3(t) : [t])
-    // Découpe les tokens composés collés ("devin"→["de","vin"])
     .flatMap(t => splitCompound(t))
-    // Supprime les mots parasites
     .filter(t => !/^\d+$/.test(t) ? !NOISE.has(t) : true);
 
   const hits = [];
@@ -702,18 +709,23 @@ function parseSegment(s) {
     if (mult !== null) {
       const num = parseNum(tokens, i + 1);
       if (num) {
-        hits.push({ number: num.value, mult });
+        // DBULL force toujours ×2 (un oeil de boeuf = 2 marques, toujours)
+        const finalMult = num.value === 'DBULL' ? 2 : mult;
+        hits.push({ number: num.value === 'DBULL' ? 'bull' : num.value, mult: finalMult });
         i += 1 + num.consumed;
       } else {
-        lost++; i++; // multiplicateur orphelin
+        // Multiplicateur orphelin en fin de segment → ne pas compter comme perdu
+        const isLast = (i === tokens.length - 1);
+        if (!isLast) lost++;
+        i++;
       }
     } else {
       const num = parseNum(tokens, i);
       if (num) {
-        hits.push({ number: num.value, mult: 1 });
+        const finalMult = num.value === 'DBULL' ? 2 : 1;
+        hits.push({ number: num.value === 'DBULL' ? 'bull' : num.value, mult: finalMult });
         i += num.consumed;
       } else {
-        // Token non résolu — compte comme perdu seulement s'il ressemble à un nombre
         if (/\d/.test(tokens[i])) lost++;
         i++;
       }
@@ -774,7 +786,8 @@ function splitMult3(s) {
 function splitCompound(t) {
   const MULTS = ['trois','triple','deux','double','de','di','un','une'];
   const NUMS  = ['vingt','vin','quinze','seize','dix-sept','dix-huit','dix-neuf',
-                 'centre','bulle','bull','fifteen','sixteen','seventeen','eighteen','nineteen','twenty'];
+                 'centre','centres','bulle','bulles','boule','boules','bull',
+                 'fifteen','sixteen','seventeen','eighteen','nineteen','twenty'];
   for (const m of MULTS) {
     if (t.startsWith(m) && t.length > m.length) {
       const rest = t.slice(m.length);
@@ -811,9 +824,15 @@ function parseNum(tokens, i) {
     '17':17, 'seventeen':17,
     '18':18, 'eighteen':18,
     '19':19, 'nineteen':19,
-    '20':20, 'vingt':20,    'vin':20,   'twenty':20,  // "vin" = "vingt" tronqué
-    'bull':'bull', 'bulle':'bull', 'centre':'bull',
+    '20':20, 'vingt':20,    'vin':20,   'twenty':20,
+    // Bull — toutes les variantes terrain
+    'bull':'bull', 'bulles':'bull', 'bulle':'bull',
+    'boule':'bull', 'boules':'bull',          // alias phonétique très fréquent
+    'centre':'bull', 'centres':'bull',
+    'cents':'bull', 'cent':'bull',
     '25':'bull', '50':'bull',
+    // DBULL = oeil de boeuf pré-processé (toujours ×2, géré dans parseSegment)
+    'DBULL':'DBULL',
   };
   if (ONE_MAP[t0] !== undefined) return { value: ONE_MAP[t0], consumed: 1 };
 
