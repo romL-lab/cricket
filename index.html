@@ -1,7 +1,7 @@
 <!-- Chemin : /index.html -->
 <!-- Rôle   : Application principale — SPA Cricket Fléchettes (MVP v3) -->
 <!-- Stack  : HTML / CSS / JS vanilla — PWA offline-ready              -->
-<!-- v3.8   : suppression thead grille, encadré jaune fin colonne active -->
+<!-- v3.9   : undo sous grille, chips alignées colonnes, journal en bas -->
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -76,13 +76,19 @@
 
     /* ── GAME ── */
     .game-header {
-      background: var(--surface); padding: 10px 12px;
+      background: var(--surface); padding: 10px 10px;
       border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 10;
     }
-    .scores-bar { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; }
+    /* Les chips s'alignent sur les colonnes : même padding latéral que .grid-wrap */
+    .scores-bar {
+      display: flex; gap: 0;
+      /* Réserve la largeur de la colonne num-col (52px) à gauche */
+      padding-left: 52px;
+    }
     .score-chip {
-      display: flex; flex-direction: column; align-items: center;
-      padding: 4px 14px; border-radius: 10px; background: var(--bg); min-width: 68px; transition: background .3s;
+      flex: 1; display: flex; flex-direction: column; align-items: center;
+      padding: 4px 4px; border-radius: 8px; background: var(--bg);
+      transition: background .3s; min-width: 0;
     }
     .score-chip.current { background: var(--accent); }
     .score-chip .cname { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; opacity: .8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 80px; }
@@ -261,13 +267,17 @@
 <!-- ════════ GAME ════════ -->
 <div id="s-game" class="screen">
   <div class="game-header">
-    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
-      <div class="scores-bar" id="scores-bar" style="flex:1"></div>
-      <button onclick="showLog()" title="Journal vocal" style="background:none;border:1px solid var(--border);border-radius:8px;padding:4px 10px;color:var(--dim);font-size:18px;cursor:pointer;flex-shrink:0">📋</button>
-    </div>
+    <div class="scores-bar" id="scores-bar"></div>
   </div>
   <div class="grid-wrap">
     <table class="cgrid" id="cgrid"></table>
+  </div>
+  <!-- Undo juste sous la grille, bien visible -->
+  <div style="padding: 8px 10px 0;">
+    <button class="undo-btn" id="undo-btn" onclick="undoLast()" disabled
+      style="width:100%;padding:13px;font-size:15px;border-radius:var(--radius);background:var(--surface);border:1px solid var(--border);color:var(--dim);font-weight:700;cursor:pointer;transition:opacity .2s;display:flex;align-items:center;justify-content:center;gap:8px;">
+      ↩ Annuler la dernière marque
+    </button>
   </div>
   <div class="game-footer">
     <div class="turn-bar">
@@ -293,9 +303,14 @@
       <div class="transcript-hits" id="transcript-hits"></div>
     </div>
     <div class="feedback" id="feedback"></div>
-    <div class="actions-row">
-      <button class="undo-btn" id="undo-btn" onclick="undoLast()" disabled>↩ Annuler la volée</button>
+    <!-- Bouton journal déplacé en bas -->
+    <div style="padding: 4px 14px 10px; display:flex; justify-content:flex-end;">
+      <button onclick="showLog()" title="Journal vocal"
+        style="background:none;border:1px solid var(--border);border-radius:8px;padding:6px 14px;color:var(--dim);font-size:14px;cursor:pointer;">
+        📋 Journal
+      </button>
     </div>
+    <div class="actions-row" style="display:none"></div>
     <div class="nums-bar" id="nums-bar"></div>
   </div>
 </div>
@@ -519,8 +534,11 @@ function renderFooter() {
   nb.textContent = G.winner ? '🏆 Résultats' : 'Suivant ➔';
   nb.classList.toggle('result-ready', !!G.winner);
   const canUndo = G.hist.length > 0 && G.hist[G.hist.length-1].p === p;
-  document.getElementById('undo-btn').disabled = !canUndo;
-  // nums-bar supprimé — saisie directe sur la grille
+  const ub = document.getElementById('undo-btn');
+  if (ub) {
+    ub.disabled = !canUndo;
+    ub.style.opacity = canUndo ? '1' : '.3';
+  }
   const bar = document.getElementById('nums-bar');
   if (bar) bar.style.display = 'none';
 }
