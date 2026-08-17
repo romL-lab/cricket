@@ -1,7 +1,7 @@
 <!-- Chemin : /index.html -->
 <!-- Rôle   : Application principale — SPA Cricket Fléchettes (MVP v3) -->
 <!-- Stack  : HTML / CSS / JS vanilla — PWA offline-ready              -->
-<!-- v3.4   : boules/bulles/centres bull, rien=ok, oeil+centre même segment, orphelin fin -->
+<!-- v3.5   : slash "/" comme séparateur (Safari iOS) -->
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -658,7 +658,7 @@ function normalize(s) {
 function parseAnnounce(t) {
   const results = t
     .replace(/\s+(et|and|puis|then)\s+/g, ',')
-    .split(/\s*[,;]\s*/)
+    .split(/\s*[,;\/]\s*/)
     .map(s => s.trim()).filter(Boolean)
     .map(parseSegment);
 
