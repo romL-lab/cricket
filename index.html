@@ -1,7 +1,7 @@
 <!-- Chemin : /index.html -->
 <!-- Rôle   : Application principale — SPA Cricket Fléchettes (MVP v3) -->
 <!-- Stack  : HTML / CSS / JS vanilla — PWA offline-ready              -->
-<!-- v3.6   : tap direct grille, scoring inversé (pts sur adversaires), mini score gagne -->
+<!-- v3.7   : colonne active surlignée, clic chip = changer joueur, noms complets grille -->
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -348,8 +348,9 @@
 // ═══════════════════════════════════════════════════════
 const NUMS   = [20, 19, 18, 17, 16, 15, 'bull'];
 const VALS   = { 20:20, 19:19, 18:18, 17:17, 16:16, 15:15, bull:25 };
-const COLORS = ['#e94560','#3b82f6','#a855f7','#10b981'];
-const EMOJIS = ['🔴','🔵','🟣','🟢'];
+const COLORS     = ['#e94560','#3b82f6','#a855f7','#10b981'];
+const COLORS_RGB = ['233,69,96','59,130,246','168,85,247','16,185,129'];
+const EMOJIS     = ['🔴','🔵','🟣','🟢'];
 
 // ═══════════════════════════════════════════════════════
 // STATE
@@ -474,15 +475,22 @@ function render() { renderScores(); renderGrid(); renderFooter(); }
 
 function renderScores() {
   document.getElementById('scores-bar').innerHTML = G.players.map((p, i) => `
-    <div class="score-chip ${i === G.cur ? 'current' : ''}">
+    <div class="score-chip ${i === G.cur ? 'current' : ''}" onclick="selectPlayer(${i})" style="cursor:pointer">
       <div class="cname">${esc(trunc(p, 9))}</div>
       <div class="cpts">${G.scores[p]}</div>
     </div>
   `).join('');
 }
 
+/** Sélectionne un joueur en cliquant sur son chip. */
+function selectPlayer(idx) {
+  if (!G || G.winner) return;
+  G.cur = idx;
+  clearTranscript(); setFb('');
+  render();
+}
+
 function renderGrid() {
-  // Noms complets dans les en-têtes (pas de troncature)
   let h = `<thead><tr><th></th>${G.players.map((p,i)=>`<th style="color:${COLORS[i]}">${esc(p)}</th>`).join('')}</tr></thead><tbody>`;
   for (const num of NUMS) {
     const lbl     = num === 'bull' ? '🎯' : num;
@@ -490,13 +498,13 @@ function renderGrid() {
     h += `<tr>
       <td class="num-col${allDead?' dead':''}">${lbl}</td>
       ${G.players.map((p, i) => {
-        const m       = G.marks[p][num];
+        const m        = G.marks[p][num];
         const isActive = i === G.cur;
-        // Tap actif uniquement sur le joueur en cours
-        const onclick = isActive && !G.winner
-          ? `onclick="tapCell('${num}')" style="cursor:pointer"`
+        const onclick  = isActive && !G.winner ? `onclick="tapCell('${num}')"` : '';
+        const colStyle = isActive
+          ? `style="cursor:pointer;background:rgba(${COLORS_RGB[i]},.10)"`
           : '';
-        return `<td class="mk-cell${m>=3?' closed':''}" ${onclick}>
+        return `<td class="mk-cell${m>=3?' closed':''}" ${onclick} ${colStyle}>
           <div class="mk-wrap">${markSVG(m)}</div>
         </td>`;
       }).join('')}
