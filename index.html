@@ -1,7 +1,7 @@
 <!-- Chemin : /index.html -->
 <!-- Rôle   : Application principale — SPA Cricket Fléchettes (MVP v3) -->
 <!-- Stack  : HTML / CSS / JS vanilla — PWA offline-ready              -->
-<!-- v3.7   : colonne active surlignée, clic chip = changer joueur, noms complets grille -->
+<!-- v3.8   : suppression thead grille, encadré jaune fin colonne active -->
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -491,7 +491,8 @@ function selectPlayer(idx) {
 }
 
 function renderGrid() {
-  let h = `<thead><tr><th></th>${G.players.map((p,i)=>`<th style="color:${COLORS[i]}">${esc(p)}</th>`).join('')}</tr></thead><tbody>`;
+  // Pas de thead — les noms sont déjà dans les chips en haut
+  let h = `<tbody>`;
   for (const num of NUMS) {
     const lbl     = num === 'bull' ? '🎯' : num;
     const allDead = G.players.every(p => G.marks[p][num] >= 3);
@@ -501,10 +502,8 @@ function renderGrid() {
         const m        = G.marks[p][num];
         const isActive = i === G.cur;
         const onclick  = isActive && !G.winner ? `onclick="tapCell('${num}')"` : '';
-        const colStyle = isActive
-          ? `style="cursor:pointer;background:rgba(${COLORS_RGB[i]},.10)"`
-          : '';
-        return `<td class="mk-cell${m>=3?' closed':''}" ${onclick} ${colStyle}>
+        const border   = isActive ? 'outline:2px solid #f59e0b;outline-offset:-2px;' : '';
+        return `<td class="mk-cell${m>=3?' closed':''}" ${onclick} style="${border}${isActive?'cursor:pointer;':''}">
           <div class="mk-wrap">${markSVG(m)}</div>
         </td>`;
       }).join('')}
