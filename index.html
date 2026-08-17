@@ -1,7 +1,7 @@
 <!-- Chemin : /index.html -->
 <!-- Rôle   : Application principale — SPA Cricket Fléchettes (MVP v3) -->
 <!-- Stack  : HTML / CSS / JS vanilla — PWA offline-ready              -->
-<!-- v3.5   : slash "/" comme séparateur (Safari iOS) -->
+<!-- v3.6   : tap direct grille, scoring inversé (pts sur adversaires), mini score gagne -->
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -95,6 +95,7 @@
     .cgrid .num-col:active { background: rgba(233,69,96,.15); }
     .num-col.dead { color: var(--dim); }
     .cgrid .mk-cell { text-align: center; border-bottom: 1px solid var(--border); padding: 4px 2px; vertical-align: middle; }
+    .cgrid .mk-cell[onclick]:active { background: rgba(233,69,96,.25); transform: scale(.93); }
     .mk-cell.closed { background: rgba(78,204,163,.08); }
     .mk-wrap { display: inline-flex; align-items: center; justify-content: center; width: 100%; }
 
@@ -414,16 +415,20 @@ function applyHits(hits) {
   const p        = G.players[G.cur];
   const snapshot = hits.map(({ number, mult }) => {
     const preM = G.marks[p][number];
-    const preS = G.scores[p];
+    // Snapshot des scores adversaires AVANT modification
+    const preScores = Object.fromEntries(G.players.map(q => [q, G.scores[q]]));
+
     for (let i = 0; i < mult; i++) {
       if (G.marks[p][number] < 3) {
+        // La case n'est pas encore fermée par le tireur → marque
         G.marks[p][number]++;
       } else {
-        const anyOpen = G.players.filter(q => q !== p).some(q => G.marks[q][number] < 3);
-        if (anyOpen) G.scores[p] += VALS[number];
+        // Case fermée par le tireur → les adversaires qui n'ont pas fermé prennent les points
+        G.players.filter(q => q !== p && G.marks[q][number] < 3)
+                 .forEach(q => G.scores[q] += VALS[number]);
       }
     }
-    return { number, mult, preM, preS };
+    return { number, mult, preM, preScores };
   });
   G.hist.push({ p, snapshot });
   checkWin();
@@ -434,9 +439,10 @@ function undoLast() {
   if (!G || !G.hist.length) return;
   const last = G.hist[G.hist.length - 1];
   if (last.p !== G.players[G.cur]) return;
-  for (const { number, preM, preS } of [...last.snapshot].reverse()) {
+  // Restaure marques + scores de tous les joueurs en ordre inverse
+  for (const { number, preM, preScores } of [...last.snapshot].reverse()) {
     G.marks[last.p][number] = preM;
-    G.scores[last.p]        = preS;
+    for (const q of G.players) G.scores[q] = preScores[q];
   }
   G.hist.pop();
   G.winner = null;
@@ -455,8 +461,9 @@ function nextPlayer() {
 function checkWin() {
   for (const p of G.players) {
     if (!NUMS.every(n => G.marks[p][n] >= 3)) continue;
-    const maxOpp = Math.max(...G.players.filter(q => q !== p).map(q => G.scores[q]));
-    if (G.scores[p] >= maxOpp) { G.winner = p; return; }
+    // A tout fermé — vérifie qu'aucun adversaire n'a un score inférieur
+    const minOpp = Math.min(...G.players.filter(q => q !== p).map(q => G.scores[q]));
+    if (G.scores[p] <= minOpp) { G.winner = p; return; }
   }
 }
 
@@ -475,15 +482,23 @@ function renderScores() {
 }
 
 function renderGrid() {
-  let h = `<thead><tr><th></th>${G.players.map((p,i)=>`<th style="color:${COLORS[i]}">${esc(trunc(p,7))}</th>`).join('')}</tr></thead><tbody>`;
+  // Noms complets dans les en-têtes (pas de troncature)
+  let h = `<thead><tr><th></th>${G.players.map((p,i)=>`<th style="color:${COLORS[i]}">${esc(p)}</th>`).join('')}</tr></thead><tbody>`;
   for (const num of NUMS) {
     const lbl     = num === 'bull' ? '🎯' : num;
     const allDead = G.players.every(p => G.marks[p][num] >= 3);
     h += `<tr>
-      <td class="num-col${allDead?' dead':''}" onclick="openModal('${num}')">${lbl}</td>
-      ${G.players.map(p=>{
-        const m = G.marks[p][num];
-        return `<td class="mk-cell${m>=3?' closed':''}"><div class="mk-wrap">${markSVG(m)}</div></td>`;
+      <td class="num-col${allDead?' dead':''}">${lbl}</td>
+      ${G.players.map((p, i) => {
+        const m       = G.marks[p][num];
+        const isActive = i === G.cur;
+        // Tap actif uniquement sur le joueur en cours
+        const onclick = isActive && !G.winner
+          ? `onclick="tapCell('${num}')" style="cursor:pointer"`
+          : '';
+        return `<td class="mk-cell${m>=3?' closed':''}" ${onclick}>
+          <div class="mk-wrap">${markSVG(m)}</div>
+        </td>`;
       }).join('')}
     </tr>`;
   }
@@ -498,9 +513,18 @@ function renderFooter() {
   nb.classList.toggle('result-ready', !!G.winner);
   const canUndo = G.hist.length > 0 && G.hist[G.hist.length-1].p === p;
   document.getElementById('undo-btn').disabled = !canUndo;
-  document.getElementById('nums-bar').innerHTML = NUMS.map(n =>
-    `<button class="numb" onclick="openModal('${n}')">${n==='bull'?'🎯':n}</button>`
-  ).join('');
+  // nums-bar supprimé — saisie directe sur la grille
+  const bar = document.getElementById('nums-bar');
+  if (bar) bar.style.display = 'none';
+}
+
+/**
+ * Tap direct sur une cellule de la grille — ajoute 1 marque à la fois.
+ * Remplace le modal simple/double/triple.
+ */
+function tapCell(num) {
+  const number = num === 'bull' ? 'bull' : parseInt(num);
+  applyHits([{ number, mult: 1 }]);
 }
 
 function markSVG(n) {
@@ -939,15 +963,16 @@ function showResult() {
   const sorted = [...G.players].sort((a, b) => {
     const ac = NUMS.every(n => G.marks[a][n] >= 3);
     const bc = NUMS.every(n => G.marks[b][n] >= 3);
+    // Ceux qui ont tout fermé en premier, puis tri par score croissant
     if (ac && !bc) return -1; if (!ac && bc) return 1;
-    return G.scores[b] - G.scores[a];
+    return G.scores[a] - G.scores[b];
   });
   const w = G.winner || sorted[0];
   document.getElementById('r-winner').textContent = w;
   document.getElementById('r-scores').innerHTML   = sorted.map((p, i) => `
     <div class="r-row ${p===w?'top':''}">
       <span>${['🥇','🥈','🥉','4️⃣'][i]} ${esc(p)}</span>
-      <span style="font-weight:800">${G.scores[p]} pts</span>
+      <span style="font-weight:800">${G.scores[p]} pts reçus</span>
     </div>
   `).join('');
   show('s-result');
