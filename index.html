@@ -1,7 +1,7 @@
 <!-- Chemin : /index.html -->
 <!-- Rôle   : Application principale — SPA Cricket Fléchettes (MVP v3) -->
 <!-- Stack  : HTML / CSS / JS vanilla — PWA offline-ready              -->
-<!-- v4.0   : profils joueurs, sélection partie, stats one-vs-one, sauvegarde résultats -->
+<!-- v4.1   : sélection réorganisée, slots sans vide, footer compact -->
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -339,37 +339,37 @@
 <div id="s-select" class="screen">
   <div class="pscreen-wrap">
     <div class="pscreen-header">
-      <h2>🎯 Joueurs</h2>
-      <div class="ph-actions">
-        <button class="ph-back" onclick="show('s-home')">← Retour</button>
-      </div>
+      <h2>🎯 Nouvelle partie</h2>
+      <button class="ph-back" onclick="show('s-home')">← Retour</button>
     </div>
     <div class="pscreen-body">
 
-      <!-- Slots joueurs sélectionnés -->
-      <div class="section-label">Ordre de jeu</div>
-      <div class="slot-row" id="slot-row"></div>
+      <!-- 1. Profils disponibles — action principale -->
+      <div class="section-label">Joueurs enregistrés</div>
+      <div class="profile-grid" id="profile-grid"></div>
 
-      <!-- Langue vocale -->
+      <!-- 2. Invité -->
+      <div class="add-profile-row">
+        <input type="text" id="guest-input" placeholder="Ajouter un invité…" maxlength="14" autocorrect="off" autocapitalize="words">
+        <button onclick="addGuest()">+ Invité</button>
+      </div>
+
+      <!-- 3. Ordre de jeu — compact, uniquement les sélectionnés -->
+      <div id="slot-section" style="display:none">
+        <div class="section-label" style="margin-top:8px">Ordre de jeu</div>
+        <div class="slot-row" id="slot-row"></div>
+      </div>
+
+      <!-- 4. Langue vocale -->
       <div class="section-label" style="margin-top:8px">Langue vocale</div>
       <div class="lang-row">
         <button class="lang-btn active" id="l-fr" onclick="setLang('fr-FR')">🇫🇷 Français</button>
         <button class="lang-btn" id="l-en" onclick="setLang('en-US')">🇬🇧 English</button>
       </div>
 
-      <!-- Profils disponibles -->
-      <div class="section-label" style="margin-top:8px">Sélectionner un profil</div>
-      <div class="profile-grid" id="profile-grid"></div>
-
-      <!-- Invité -->
-      <div class="add-profile-row">
-        <input type="text" id="guest-input" placeholder="Nom invité…" maxlength="14" autocorrect="off" autocapitalize="words">
-        <button onclick="addGuest()">+ Invité</button>
-      </div>
-
     </div>
     <div style="padding:12px 14px;padding-bottom:env(safe-area-inset-bottom,12px)">
-      <button class="start-btn" id="select-start-btn" onclick="startGameFromSelect()">Commencer ▶</button>
+      <button class="start-btn" id="select-start-btn" onclick="startGameFromSelect()" disabled>Commencer ▶</button>
     </div>
   </div>
 </div>
@@ -432,19 +432,19 @@
     <div class="mic-zone">
       <button class="mic-btn" id="mic-btn" onclick="toggleMic()">
         <span id="mic-icon">🎤</span>
-        <span id="mic-lbl">Appuyez et annoncez votre volée</span>
+        <span id="mic-lbl">Annoncer la volée</span>
       </button>
-      <div class="mic-hint" id="mic-hint">
+      <div class="mic-hint" id="mic-hint" style="display:none">
         Ex : « un 20, deux 18 » · « triple 20 » · « centre » · « œil de bœuf »<br>
         Dites « suivant » pour passer au joueur suivant
       </div>
     </div>
-    <div class="transcript-bar" id="transcript-bar">
+    <div class="transcript-bar" id="transcript-bar" style="display:none">
       <div class="transcript-label">Reconnu</div>
       <div class="transcript-raw"  id="transcript-raw"></div>
       <div class="transcript-hits" id="transcript-hits"></div>
     </div>
-    <div class="feedback" id="feedback"></div>
+    <div class="feedback" id="feedback" style="display:none"></div>
     <!-- Bouton journal déplacé en bas -->
     <div style="padding: 4px 14px 10px; display:flex; justify-content:flex-end;">
       <button onclick="showLog()" title="Journal vocal"
@@ -661,25 +661,23 @@ function removeSlot(idx) {
 }
 
 function renderSlots() {
-  const el = document.getElementById('slot-row');
-  let h = '';
-  const show4 = Math.max(selectedPlayers.length + 1, 2);
-  for (let i = 0; i < Math.min(show4, 4); i++) {
-    const s = selectedPlayers[i];
-    if (s) {
-      h += `<div class="slot">
+  const section = document.getElementById('slot-section');
+  const el      = document.getElementById('slot-row');
+
+  if (!selectedPlayers.length) {
+    section.style.display = 'none';
+    el.innerHTML = '';
+  } else {
+    section.style.display = 'block';
+    el.innerHTML = selectedPlayers.map((s, i) => `
+      <div class="slot">
         <div class="slot-avatar" style="background:${s.color}">${EMOJIS[i]}</div>
         <div class="slot-name">${esc(s.name)}</div>
         <button class="slot-remove" onclick="removeSlot(${i})">✕</button>
-      </div>`;
-    } else {
-      h += `<div class="slot empty">
-        <div class="slot-avatar" style="background:var(--border)">${EMOJIS[i]}</div>
-        <div class="slot-name" style="color:var(--dim)">— vide —</div>
-      </div>`;
-    }
+      </div>
+    `).join('');
   }
-  el.innerHTML = h;
+
   const btn = document.getElementById('select-start-btn');
   if (btn) btn.disabled = selectedPlayers.length < 2;
 }
@@ -891,6 +889,7 @@ function startRecog() {
     document.getElementById('mic-btn').classList.add('on');
     document.getElementById('mic-icon').textContent = '🔴';
     document.getElementById('mic-lbl').textContent  = 'Écoute… annoncez votre volée';
+    document.getElementById('mic-hint').style.display = 'block';
     document.getElementById('mic-hint').textContent = 'Parlez normalement puis taisez-vous.';
     clearTranscript(); setFb('');
   };
@@ -913,14 +912,13 @@ function stopRecog() {
   try { recog?.stop(); } catch(e) {}
   document.getElementById('mic-btn').classList.remove('on');
   document.getElementById('mic-icon').textContent = '🎤';
-  document.getElementById('mic-lbl').textContent  = 'Appuyez et annoncez votre volée';
-  document.getElementById('mic-hint').innerHTML   =
-    'Ex : « un 20, deux 18 » · « triple 20 » · « centre » · « œil de bœuf »<br>Dites « suivant » pour passer';
+  document.getElementById('mic-lbl').textContent  = 'Annoncer la volée';
+  document.getElementById('mic-hint').style.display = 'none';
 }
 
 function processVoice(raw) {
   document.getElementById('transcript-raw').textContent = raw;
-  document.getElementById('transcript-bar').classList.add('visible');
+  document.getElementById('transcript-bar').style.display = 'block';
 
   const t = normalize(raw);
 
@@ -1348,9 +1346,14 @@ function show(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById(id).classList.add('active');
 }
-function setFb(msg) { document.getElementById('feedback').textContent = msg; }
+function setFb(msg) {
+  const el = document.getElementById('feedback');
+  el.textContent   = msg;
+  el.style.display = msg ? 'block' : 'none';
+}
 function clearTranscript() {
-  document.getElementById('transcript-bar').classList.remove('visible');
+  const bar = document.getElementById('transcript-bar');
+  bar.style.display = 'none';
   document.getElementById('transcript-raw').textContent  = '';
   document.getElementById('transcript-hits').textContent = '';
 }
