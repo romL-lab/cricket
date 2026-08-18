@@ -824,17 +824,22 @@ function endVolee() {
 }
 
 /**
- * Sélectionne un joueur en cliquant sur son chip (multi uniquement).
- * Termine implicitement la volée du joueur quitté (incrémente son compteur)
- * avant de basculer sur le joueur cliqué.
+ * Bascule le joueur actif : incrémente le compteur de volées du joueur
+ * quitté (sa volée est considérée terminée) et remet le flag de marque
+ * à zéro pour le nouveau joueur actif. No-op en solo (un seul joueur).
  */
-function selectPlayer(idx) {
-  if (!G || G.winner || G.solo) return;
-  if (idx === G.cur) return;
+function switchActivePlayer(idx) {
+  if (!G || G.solo || idx === G.cur) return;
   const p = G.players[G.cur];
   G.voleeCounts[p] = (G.voleeCounts[p] || 0) + 1;
   G.cur = idx;
   G.turnMarked = false;
+}
+
+/** Sélectionne un joueur en cliquant sur son chip (multi uniquement). */
+function selectPlayer(idx) {
+  if (!G || G.winner || G.solo) return;
+  switchActivePlayer(idx);
   clearTranscript(); setFb('');
   render();
 }
@@ -886,9 +891,9 @@ function renderGrid() {
       ${G.players.map((p, i) => {
         const m        = G.marks[p][num];
         const isActive = i === G.cur;
-        const onclick  = isActive && !G.winner ? `onclick="tapCell('${num}')"` : '';
+        const onclick  = !G.winner ? `onclick="tapCellFor(${i},'${num}')"` : '';
         const border   = isActive ? 'outline:2px solid #f59e0b;outline-offset:-2px;' : '';
-        return `<td class="mk-cell${m>=3?' closed':''}" ${onclick} style="${border}${isActive?'cursor:pointer;':''}">
+        return `<td class="mk-cell${m>=3?' closed':''}" ${onclick} style="${border}${!G.winner?'cursor:pointer;':''}">
           <div class="mk-wrap">${markSVG(m)}</div>
         </td>`;
       }).join('')}
@@ -934,6 +939,17 @@ function renderFooter() {
  * Tap direct sur une cellule de la grille — ajoute 1 marque à la fois.
  * Remplace le modal simple/double/triple.
  */
+/**
+ * Tap direct sur une cellule de la grille, celle du joueur actif ou d'un
+ * autre joueur — dans ce dernier cas, ce joueur devient actif avant que
+ * la marque ne soit posée. Ajoute 1 marque à la fois.
+ */
+function tapCellFor(idx, num) {
+  if (!G || G.winner) return;
+  switchActivePlayer(idx);
+  tapCell(num);
+}
+
 function tapCell(num) {
   const number = num === 'bull' ? 'bull' : parseInt(num);
   applyHits([{ number, mult: 1 }]);
