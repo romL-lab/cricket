@@ -27,6 +27,25 @@
       --radius:   12px;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    #updateBanner {
+      display: none;
+      position: fixed; left: 0; right: 0; bottom: 0;
+      z-index: 9999;
+      background: var(--amber); color: #1a1200;
+      padding: 10px 14px;
+      padding-bottom: calc(10px + env(safe-area-inset-bottom));
+      align-items: center; justify-content: space-between;
+      gap: 12px;
+      font-size: 14px; font-weight: 600;
+      box-shadow: 0 -2px 10px rgba(0,0,0,.3);
+    }
+    #updateBanner.show { display: flex; }
+    #updateBanner button {
+      background: #1a1200; color: var(--amber);
+      border: none; border-radius: 8px;
+      padding: 8px 14px; font-size: 14px; font-weight: 700;
+      white-space: nowrap;
+    }
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
       background: var(--bg); color: var(--text);
@@ -323,6 +342,10 @@
   </style>
 </head>
 <body>
+<div id="updateBanner">
+  <span>🔄 Nouvelle version disponible</span>
+  <button id="updateBannerBtn">Recharger</button>
+</div>
 
 <!-- ════════ HOME ════════ -->
 <div id="s-home" class="screen active">
@@ -1414,7 +1437,10 @@ function nextVolee() {
   clearTranscript(); setFb('');
   render();
   resetSoloTimer();
-} — empêche la mise en veille pendant la partie
+}
+
+// ═══════════════════════════════════════════════════════
+// Wake Lock — empêche la mise en veille pendant la partie
 // Méthode vidéo silencieuse : seule solution fiable sur Safari iOS
 // ═══════════════════════════════════════════════════════
 let wakeLock     = null;
@@ -1470,11 +1496,43 @@ document.addEventListener('visibilitychange', () => {
 // ═══════════════════════════════════════════════════════
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js')
-      .then(() => console.log('[SW] Offline actif'))
-      .catch(e  => console.warn('[SW] Échec :', e));
+    // updateViaCache: 'none' → force le navigateur à toujours revérifier
+    // sw.js sur le réseau au lieu de le servir depuis son cache HTTP.
+    // C'était la cause principale du "les MAJ ne s'affichent jamais".
+    navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' })
+      .then(reg => {
+        console.log('[SW] Offline actif');
+
+        reg.addEventListener('updatefound', () => {
+          const nw = reg.installing;
+          if (!nw) return;
+          nw.addEventListener('statechange', () => {
+            // Un contrôleur existait déjà => ce n'est pas la 1ère install,
+            // c'est une vraie mise à jour.
+            if (nw.state === 'activated' && navigator.serviceWorker.controller) {
+              showUpdateBanner();
+            }
+          });
+        });
+
+        // Revérifie la présence d'une nouvelle version quand l'app revient
+        // au premier plan (utile pour la PWA restée ouverte longtemps).
+        document.addEventListener('visibilitychange', () => {
+          if (document.visibilityState === 'visible') reg.update();
+        });
+      })
+      .catch(e => console.warn('[SW] Échec :', e));
   });
 }
+
+function showUpdateBanner() {
+  const el = document.getElementById('updateBanner');
+  el.classList.add('show');
+}
+
+document.getElementById('updateBannerBtn').addEventListener('click', () => {
+  location.reload();
+});
 
 // ═══════════════════════════════════════════════════════
 // INIT
