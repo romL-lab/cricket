@@ -4,8 +4,8 @@
 
 ## Stack
 - PWA pure (HTML / CSS / JS vanilla) — zéro dépendance
-- Web Speech API pour la saisie vocale (FR + EN)
-- Stockage : aucun en v1 (partie en mémoire)
+- Web Speech API pour la saisie vocale (FR uniquement pour l'instant)
+- Stockage : localStorage (profils, stats, journal vocal)
 - Hébergement : GitHub Pages
 
 ## Structure du projet
@@ -51,3 +51,30 @@ Utiliser [favicon.io](https://favicon.io) ou [realfavicongenerator.net](https://
 - [ ] Variantes cut-throat
 - [ ] Animations sur les actions clés
 - [ ] Mode multijoueur réseau (WebSocket)
+
+## Contribuer — ajouter le support de la reconnaissance vocale en anglais
+
+Le parser vocal (fonction `processVoice` dans `index.html`) ne comprend que le
+français : les alias de nombres, multiplicateurs ("double", "triple") et
+variantes phonétiques du Sud sont codés en dur pour le FR. La reconnaissance
+elle-même (`recog.lang`, piloté par `cfg.lang`) peut techniquement écouter
+n'importe quelle langue supportée par la Web Speech API, mais rien
+aujourd'hui n'interprète une transcription anglaise.
+
+Pour ajouter l'anglais :
+
+1. Repérer `processVoice(raw)` dans `index.html` et la table d'alias qu'elle
+   utilise pour convertir le texte transcrit en coups (nombre + multiplicateur).
+2. Construire l'équivalent anglais de cette table (ex : "double twenty",
+   "treble" ou "triple", "miss"/"nothing" pour une volée vierge...).
+3. Utiliser le **journal vocal** intégré à l'app (icône journal pendant une
+   partie → export JSON) pour collecter de vraies transcriptions ratées en
+   conditions réelles : chaque entrée contient le texte brut reconnu, le
+   résultat interprété et un statut `ok` / `partial` / `fail`. C'est la
+   meilleure source pour calibrer les alias sur de la prononciation réelle
+   plutôt que des cas théoriques.
+4. Réintroduire un sélecteur de langue (retiré en v10 car non fonctionnel)
+   une fois qu'un vrai parser EN existe, en repassant `cfg.lang` à `'en-US'`.
+
+Une PR avec quelques logs JSON réels à l'appui est plus utile qu'une
+implémentation sans exemples de terrain.
