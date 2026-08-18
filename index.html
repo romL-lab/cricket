@@ -1,7 +1,7 @@
 <!-- Chemin : /index.html -->
 <!-- Rôle   : Application principale — SPA Cricket Fléchettes (MVP v3) -->
 <!-- Stack  : HTML / CSS / JS vanilla — PWA offline-ready              -->
-<!-- v4.2   : fix newGame doublon, scroll jeu verrouillé à 100dvh -->
+<!-- v4.3   : Wake Lock — empêche la mise en veille pendant la partie -->
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -691,6 +691,7 @@ function startGameFromSelect() {
   if (selectedPlayers.length < 2) return;
   const defs = selectedPlayers.map(s => ({ profileId: s.profileId, name: s.name }));
   initGame(defs.map(d => d.name), defs);
+  requestWakeLock();
   show('s-game');
   render();
 }
@@ -1287,6 +1288,7 @@ function clearLog() {
 // RESULT
 // ═══════════════════════════════════════════════════════
 function showResult() {
+  releaseWakeLock();
   const sorted = [...G.players].sort((a, b) => {
     const ac = NUMS.every(n => G.marks[a][n] >= 3);
     const bc = NUMS.every(n => G.marks[b][n] >= 3);
@@ -1339,6 +1341,7 @@ function playAgain() {
   const defs    = [...(G.playerDefs || [])].reverse();
   const players = defs.map(d => d.name);
   initGame(players, defs);
+  requestWakeLock();
   show('s-game');
   render();
 }
@@ -1367,7 +1370,32 @@ function esc(s) {
 }
 
 // ═══════════════════════════════════════════════════════
-// SERVICE WORKER
+// WAKE LOCK — empêche la mise en veille pendant la partie
+// Supporté Safari iOS 16.4+, Chrome Android
+// ═══════════════════════════════════════════════════════
+let wakeLock = null;
+
+async function requestWakeLock() {
+  if (!('wakeLock' in navigator)) return; // navigateur non supporté, silencieux
+  try {
+    wakeLock = await navigator.wakeLock.request('screen');
+    // Réacquérir si le système le libère (ex: tab en arrière-plan)
+    wakeLock.addEventListener('release', () => {
+      if (G && !G.winner) requestWakeLock(); // partie en cours → on réacquiert
+    });
+  } catch(e) {
+    console.warn('[WakeLock] Non accordé :', e.message);
+  }
+}
+
+function releaseWakeLock() {
+  if (wakeLock) { wakeLock.release(); wakeLock = null; }
+}
+
+// Réacquérir quand l'onglet redevient visible
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && G && !G.winner) requestWakeLock();
+});
 // ═══════════════════════════════════════════════════════
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
