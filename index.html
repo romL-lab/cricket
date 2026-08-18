@@ -1,7 +1,7 @@
 <!-- Chemin : /index.html -->
 <!-- Rôle   : Application principale — SPA Cricket Fléchettes (MVP v3) -->
 <!-- Stack  : HTML / CSS / JS vanilla — PWA offline-ready              -->
-<!-- v4.3   : Wake Lock — empêche la mise en veille pendant la partie -->
+<!-- v4.4   : Wake Lock vidéo silencieuse — fiable Safari iOS -->
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -1371,28 +1371,54 @@ function esc(s) {
 
 // ═══════════════════════════════════════════════════════
 // WAKE LOCK — empêche la mise en veille pendant la partie
-// Supporté Safari iOS 16.4+, Chrome Android
+// Méthode vidéo silencieuse : seule solution fiable sur Safari iOS
 // ═══════════════════════════════════════════════════════
-let wakeLock = null;
+let wakeLock     = null;
+let wakeVideo    = null;
+
+function buildWakeVideo() {
+  // Vidéo MP4 1x1 pixel silencieuse encodée en base64
+  // Source : NoSleep.js — méthode éprouvée sur iOS
+  const src = 'data:video/mp4;base64,AAAAIGZ0eXBpc29tAAACAGlzb21pc28yYXZjMW1wNDEAAAAIZnJlZQAAA' +
+    'rhtZGF0AAACrgYF//+q3EXpvebZSLeWLNgg2SPu73gyNjQgLSBjb3JlIDE0MiByMjQ3OSBkZD' +
+    'k3OTBhYSAtIEguMjY0L01QRUctNCBBVkMgY29kZWMgLSBDb3B5bGVmdCAyMDAzLTIwMTQgLSB' +
+    'odHRwOi8vd3d3LnZpZGVvbGFuLm9yZy94MjY0Lmh0bWwgLSBvcHRpb25zOiBjYWJhYz0xIHJ' +
+    'lZj0zIGRlYmxvY2s9MTowOjAgYW5hbHlzZT0weDM6MHgxMTMgbWU9aGV4IHN1Ym1lPTcgcHN' +
+    '5PTEgcHN5X3JkPTEuMDA6MC4wMCBtaXhlZF9yZWY9MSBtZV9yYW5nZT0xNiByY19lcT0yIG1' +
+    'icmF0ZT0wIHJhdGV0b2w9MS4wIHFjb21wPTAuNjAgcXBtaW49MCBxcG1heD02OSBxcHN0ZXA9' +
+    'NCBpcF9yYXRpbz0xLjQwIGFxPTE6MS4wMACAAAAPZWxpYnJhcnkAAAAMYXZjMQMgAAAAAAAB';
+
+  const v = document.createElement('video');
+  v.setAttribute('playsinline', '');
+  v.setAttribute('muted', '');
+  v.setAttribute('loop', '');
+  v.style.cssText = 'position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;z-index:-1';
+  v.src = src;
+  document.body.appendChild(v);
+  return v;
+}
 
 async function requestWakeLock() {
-  if (!('wakeLock' in navigator)) return; // navigateur non supporté, silencieux
-  try {
-    wakeLock = await navigator.wakeLock.request('screen');
-    // Réacquérir si le système le libère (ex: tab en arrière-plan)
-    wakeLock.addEventListener('release', () => {
-      if (G && !G.winner) requestWakeLock(); // partie en cours → on réacquiert
-    });
-  } catch(e) {
-    console.warn('[WakeLock] Non accordé :', e.message);
+  // Tentative API native d'abord (Chrome Android)
+  if ('wakeLock' in navigator) {
+    try {
+      wakeLock = await navigator.wakeLock.request('screen');
+      wakeLock.addEventListener('release', () => {
+        if (G && !G.winner) requestWakeLock();
+      });
+      return;
+    } catch(e) { /* tombe sur la méthode vidéo */ }
   }
+  // Méthode vidéo — fiable sur Safari iOS
+  if (!wakeVideo) wakeVideo = buildWakeVideo();
+  wakeVideo.play().catch(() => {});
 }
 
 function releaseWakeLock() {
   if (wakeLock) { wakeLock.release(); wakeLock = null; }
+  if (wakeVideo) { wakeVideo.pause(); }
 }
 
-// Réacquérir quand l'onglet redevient visible
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible' && G && !G.winner) requestWakeLock();
 });
