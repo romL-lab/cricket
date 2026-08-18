@@ -1,8 +1,8 @@
 // Chemin : /sw.js
 // Rôle    : Service Worker — mise en cache pour usage offline (PWA)
-// Version : v7 — bump forcé pour invalider le cache v6
+// Version : v8 — bump forcé pour invalider le cache v7
 
-const CACHE_NAME = 'cricket-v7';
+const CACHE_NAME = 'cricket-v8';
 const ASSETS = [
   './',
   './index.html',
