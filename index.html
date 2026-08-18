@@ -150,6 +150,7 @@
       cursor: pointer; white-space: nowrap; transition: opacity .2s;
     }
     .next-btn:active { opacity: .8; }
+    .next-btn:disabled { background: var(--surface2); color: var(--dim); cursor: not-allowed; opacity: .6; }
     .next-btn.result-ready { background: var(--amber); }
 
     .mic-zone { padding: 12px 14px 4px; display: flex; flex-direction: column; align-items: center; gap: 8px; }
@@ -754,6 +755,7 @@ function initGame(players, playerDefs = []) {
     cur:        0,
     solo:       players.length === 1,  // mode entraînement
     voleeCounts: Object.fromEntries(players.map(p => [p, 0])), // compteur de volées par joueur
+    turnMarked: false,                 // au moins une marque posée par le joueur actif ce tour-ci
     marks:      Object.fromEntries(players.map(p => [p, Object.fromEntries(NUMS.map(n => [n, 0]))])),
     scores:     Object.fromEntries(players.map(p => [p, 0])),
     hist:       [],
@@ -783,6 +785,7 @@ function applyHits(hits) {
     return { number, mult, preM, preScores };
   });
   G.hist.push({ p, snapshot });
+  G.turnMarked = true;
   checkWin();
   render();
 }
@@ -798,6 +801,7 @@ function undoLast() {
   }
   G.hist.pop();
   G.winner = null;
+  G.turnMarked = G.hist.length > 0 && G.hist[G.hist.length - 1].p === last.p;
   clearTranscript(); setFb('');
   render();
 }
@@ -810,9 +814,11 @@ function undoLast() {
 function endVolee() {
   if (!G) return;
   if (G.winner) { showResult(); return; }
+  if (!G.solo && G.turnMarked) return; // incohérent : des marques ont déjà été posées ce tour
   const p = G.players[G.cur];
   G.voleeCounts[p] = (G.voleeCounts[p] || 0) + 1;
   G.cur = (G.cur + 1) % G.players.length;
+  G.turnMarked = false;
   clearTranscript(); setFb('');
   render();
 }
@@ -828,6 +834,7 @@ function selectPlayer(idx) {
   const p = G.players[G.cur];
   G.voleeCounts[p] = (G.voleeCounts[p] || 0) + 1;
   G.cur = idx;
+  G.turnMarked = false;
   clearTranscript(); setFb('');
   render();
 }
@@ -903,10 +910,14 @@ function renderFooter() {
   }
 
   nb.style.display = '';
+  nb.disabled = false;
   if (G.winner) {
     nb.textContent = '🏆 Résultats';
   } else if (G.solo) {
     nb.textContent = 'Volée suivante ➔';
+  } else if (G.turnMarked) {
+    nb.textContent = '0️⃣ Volée vierge';
+    nb.disabled = true;
   } else {
     nb.textContent = '0️⃣ Volée vierge';
   }
