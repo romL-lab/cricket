@@ -1,14 +1,14 @@
 // Chemin : /sw.js
 // Rôle    : Service Worker — mise en cache pour usage offline (PWA)
-// Version : bump CACHE_NAME à chaque déploiement pour forcer le rechargement
+// Version : v2 — chemins icônes corrigés (icon/ sans s)
 
-const CACHE_NAME = 'cricket-v1';
+const CACHE_NAME = 'cricket-v2';
 const ASSETS = [
   './',
   './index.html',
   './manifest.json',
-  './icons/icon-192.png',
-  './icons/icon-512.png',
+  './icon/icon-192.png',
+  './icon/icon-512.png',
 ];
 
 // Installation : mise en cache des assets statiques
