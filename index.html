@@ -1,7 +1,7 @@
 <!-- Chemin : /index.html -->
 <!-- Rôle   : Application principale — SPA Cricket Fléchettes (MVP v3) -->
 <!-- Stack  : HTML / CSS / JS vanilla — PWA offline-ready              -->
-<!-- v4.6   : mode solo — compteur volées header, auto-next 15s, sans bouton Suivant -->
+<!-- v10   : tap en 2 temps (activer puis marquer), fix undo cross-tour -->
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -368,6 +368,7 @@
       style="background:transparent;border:1px solid var(--border);color:var(--dim);margin-top:-10px">
       👤 Gérer les profils
     </button>
+    <div style="position:fixed;bottom:10px;left:0;right:0;text-align:center;font-size:11px;color:var(--dim);opacity:.5">v10</div>
   </div>
 </div>
 
@@ -928,7 +929,7 @@ function renderFooter() {
   }
   nb.classList.toggle('result-ready', !!G.winner);
 
-  const canUndo = G.hist.length > 0 && G.hist[G.hist.length-1].p === p;
+  const canUndo = G.turnMarked && G.hist.length > 0;
   const ub = document.getElementById('undo-btn');
   if (ub) { ub.disabled = !canUndo; ub.style.opacity = canUndo ? '1' : '.3'; }
   const bar = document.getElementById('nums-bar');
@@ -946,7 +947,12 @@ function renderFooter() {
  */
 function tapCellFor(idx, num) {
   if (!G || G.winner) return;
-  switchActivePlayer(idx);
+  if (idx !== G.cur) {
+    // Premier tap sur une grille inactive : on l'active seulement, pas de marque.
+    switchActivePlayer(idx);
+    render();
+    return;
+  }
   tapCell(num);
 }
 
