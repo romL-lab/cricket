@@ -1,7 +1,7 @@
 <!-- Chemin : /index.html -->
 <!-- Rôle   : Application principale — SPA Cricket Fléchettes (MVP v3) -->
 <!-- Stack  : HTML / CSS / JS vanilla — PWA offline-ready              -->
-<!-- v10   : tap en 2 temps (activer puis marquer), fix undo cross-tour -->
+<!-- v11   : suppression sélecteur EN (parser FR-only), doc contribution README -->
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -85,12 +85,6 @@
     .p-avatar { width: 42px; height: 42px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0; }
     .player-row input { flex: 1; background: none; border: none; outline: none; color: var(--text); font-size: 16px; font-weight: 600; }
     .player-row input::placeholder { color: var(--dim); font-weight: 400; }
-    .lang-row { display: flex; gap: 8px; }
-    .lang-btn {
-      padding: 9px 18px; border-radius: 50px; border: 1px solid var(--border);
-      background: transparent; color: var(--dim); font-size: 14px; cursor: pointer; transition: all .2s;
-    }
-    .lang-btn.active { border-color: var(--green); color: var(--green); background: rgba(78,204,163,.12); }
     .start-btn {
       width: 100%; max-width: 340px; padding: 18px; background: var(--accent);
       color: #fff; border: none; border-radius: var(--radius); font-size: 18px;
@@ -368,7 +362,7 @@
       style="background:transparent;border:1px solid var(--border);color:var(--dim);margin-top:-10px">
       👤 Gérer les profils
     </button>
-    <div style="position:fixed;bottom:10px;left:0;right:0;text-align:center;font-size:11px;color:var(--dim);opacity:.5">v10</div>
+    <div style="position:fixed;bottom:10px;left:0;right:0;text-align:center;font-size:11px;color:var(--dim);opacity:.5">v11</div>
   </div>
 </div>
 
@@ -395,13 +389,6 @@
       <div id="slot-section" style="display:none">
         <div class="section-label" style="margin-top:8px">Ordre de jeu</div>
         <div class="slot-row" id="slot-row"></div>
-      </div>
-
-      <!-- 4. Langue vocale -->
-      <div class="section-label" style="margin-top:8px">Langue vocale</div>
-      <div class="lang-row">
-        <button class="lang-btn active" id="l-fr" onclick="setLang('fr-FR')">🇫🇷 Français</button>
-        <button class="lang-btn" id="l-en" onclick="setLang('en-US')">🇬🇧 English</button>
       </div>
 
       <button class="start-btn" id="select-start-btn" onclick="startGameFromSelect()" disabled
@@ -550,7 +537,7 @@ const EMOJIS     = ['🔴','🔵','🟣','🟢'];
 // ═══════════════════════════════════════════════════════
 // STATE
 // ═══════════════════════════════════════════════════════
-let cfg      = { count: 3, lang: 'fr-FR' };
+let cfg      = { count: 3, lang: 'fr-FR' }; // reconnaissance vocale FR uniquement — voir README pour ajouter EN
 let G        = null;
 let modalNum = null;
 let recog    = null;
@@ -735,11 +722,6 @@ function startGameFromSelect() {
 function setCount(n) {}
 function buildInputs(n) {}
 function startGame() {}
-function setLang(l) {
-  cfg.lang = l;
-  document.getElementById('l-fr').classList.toggle('active', l === 'fr-FR');
-  document.getElementById('l-en').classList.toggle('active', l === 'en-US');
-}
 function newGame() { showSelect(); }
 
 // ═══════════════════════════════════════════════════════
