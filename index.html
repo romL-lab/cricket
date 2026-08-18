@@ -1,7 +1,7 @@
 <!-- Chemin : /index.html -->
 <!-- Rôle   : Application principale — SPA Cricket Fléchettes (MVP v3) -->
 <!-- Stack  : HTML / CSS / JS vanilla — PWA offline-ready              -->
-<!-- v4.4   : Wake Lock vidéo silencieuse — fiable Safari iOS -->
+<!-- v4.5   : bouton Commencer remonté, solo autorisé -->
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -372,9 +372,9 @@
         <button class="lang-btn" id="l-en" onclick="setLang('en-US')">🇬🇧 English</button>
       </div>
 
-    </div>
-    <div style="padding:12px 14px;padding-bottom:env(safe-area-inset-bottom,12px)">
-      <button class="start-btn" id="select-start-btn" onclick="startGameFromSelect()" disabled>Commencer ▶</button>
+      <button class="start-btn" id="select-start-btn" onclick="startGameFromSelect()" disabled
+        style="margin-top:20px">Commencer ▶</button>
+
     </div>
   </div>
 </div>
@@ -684,11 +684,11 @@ function renderSlots() {
   }
 
   const btn = document.getElementById('select-start-btn');
-  if (btn) btn.disabled = selectedPlayers.length < 2;
+  if (btn) btn.disabled = selectedPlayers.length < 1;
 }
 
 function startGameFromSelect() {
-  if (selectedPlayers.length < 2) return;
+  if (selectedPlayers.length < 1) return;
   const defs = selectedPlayers.map(s => ({ profileId: s.profileId, name: s.name }));
   initGame(defs.map(d => d.name), defs);
   requestWakeLock();
