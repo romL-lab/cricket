@@ -1,7 +1,7 @@
 <!-- Chemin : /index.html -->
 <!-- Rôle   : Application principale — SPA Cricket Fléchettes (MVP v3) -->
 <!-- Stack  : HTML / CSS / JS vanilla — PWA offline-ready              -->
-<!-- v4.1   : sélection réorganisée, slots sans vide, footer compact -->
+<!-- v4.2   : fix newGame doublon, scroll jeu verrouillé à 100dvh -->
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -33,7 +33,12 @@
       min-height: 100dvh; overflow-x: hidden;
     }
     .screen { display: none; }
-    .screen.active { display: flex; flex-direction: column; min-height: 100dvh; }
+    .screen.active { display: flex; flex-direction: column; height: 100dvh; overflow: hidden; }
+    /* Exception : écrans de navigation qui peuvent défiler librement */
+    #s-home.active, #s-select.active, #s-profiles.active, #s-stats.active,
+    #s-result.active, #s-log.active {
+      height: auto; min-height: 100dvh; overflow: visible;
+    }
 
     /* ── SETUP ── */
     .setup-wrap {
@@ -1337,7 +1342,6 @@ function playAgain() {
   show('s-game');
   render();
 }
-function newGame()   { show('s-setup'); }
 
 // ═══════════════════════════════════════════════════════
 // UTILS
