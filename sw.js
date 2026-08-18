@@ -1,10 +1,8 @@
 // Chemin : /sw.js
 // Rôle    : Service Worker — mise en cache pour usage offline (PWA)
-// Version : v5 — bump forcé pour invalider le cache v4
-// Note    : le vrai fix du problème de MAJ est côté index.html
-//           (register avec updateViaCache: 'none' + bandeau de reload)
+// Version : v6 — bump forcé pour invalider le cache v5
 
-const CACHE_NAME = 'cricket-v5';
+const CACHE_NAME = 'cricket-v6';
 const ASSETS = [
   './',
   './index.html',
