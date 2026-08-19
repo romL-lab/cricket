@@ -1,7 +1,7 @@
 <!-- Chemin : /index.html -->
 <!-- Rôle   : Application principale — SPA Cricket Fléchettes (MVP v3) -->
 <!-- Stack  : HTML / CSS / JS vanilla — PWA offline-ready              -->
-<!-- v11   : suppression sélecteur EN (parser FR-only), doc contribution README -->
+<!-- v12   : sons générés (tap/fermeture/points) + vibration Android + toggle son -->
 <!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -97,13 +97,18 @@
       background: var(--surface); padding: 10px 10px;
       border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 10;
     }
+    .header-btn-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
     .quit-btn {
-      display: block; margin: 0 0 8px auto;
       background: none; border: 1px solid var(--border); border-radius: 8px;
       color: var(--dim); font-size: 12px; font-weight: 700;
       padding: 5px 10px; cursor: pointer;
     }
     .quit-btn:active { opacity: .7; }
+    .sound-btn {
+      background: none; border: 1px solid var(--border); border-radius: 8px;
+      font-size: 14px; padding: 5px 10px; cursor: pointer; line-height: 1;
+    }
+    .sound-btn:active { opacity: .7; }
     /* Les chips s'alignent sur les colonnes : même padding latéral que .grid-wrap */
     .scores-bar {
       display: flex; gap: 0;
@@ -362,7 +367,7 @@
       style="background:transparent;border:1px solid var(--border);color:var(--dim);margin-top:-10px">
       👤 Gérer les profils
     </button>
-    <div style="position:fixed;bottom:10px;left:0;right:0;text-align:center;font-size:11px;color:var(--dim);opacity:.5">v11</div>
+    <div style="position:fixed;bottom:10px;left:0;right:0;text-align:center;font-size:11px;color:var(--dim);opacity:.5">v12</div>
   </div>
 </div>
 
@@ -433,7 +438,10 @@
 <!-- ════════ GAME ════════ -->
 <div id="s-game" class="screen">
   <div class="game-header">
-    <button class="quit-btn" id="quit-btn" onclick="quitGame()">✕ Quitter</button>
+    <div class="header-btn-row">
+      <button class="quit-btn" id="quit-btn" onclick="quitGame()">✕ Quitter</button>
+      <button class="sound-btn" id="sound-toggle-btn" onclick="toggleSound()">🔊</button>
+    </div>
     <div class="scores-bar" id="scores-bar"></div>
   </div>
   <div class="grid-wrap">
@@ -712,6 +720,8 @@ function startGameFromSelect() {
   const defs = selectedPlayers.map(s => ({ profileId: s.profileId, name: s.name }));
   initGame(defs.map(d => d.name), defs);
   requestWakeLock();
+  getAudioCtx();
+  renderSoundToggle();
   show('s-game');
   render();
 }
@@ -747,9 +757,70 @@ function initGame(players, playerDefs = []) {
 }
 
 
+// ═══════════════════════════════════════════════════════
+// SON & RETOUR HAPTIQUE
+// Sons générés (Web Audio API, aucun fichier audio).
+// Vibration : no-op silencieux sur iOS (API non supportée par Safari).
+// ═══════════════════════════════════════════════════════
+const SOUND_KEY = 'cricket_sound_enabled';
+let soundEnabled = localStorage.getItem(SOUND_KEY) !== '0';
+let audioCtx = null;
+
+function getAudioCtx() {
+  if (!audioCtx) {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return null;
+    audioCtx = new AC();
+  }
+  if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
+  return audioCtx;
+}
+
+function beep({ freq = 600, duration = 0.05, type = 'sine', gain = 0.15, delay = 0 }) {
+  if (!soundEnabled) return;
+  const ctx = getAudioCtx();
+  if (!ctx) return;
+  try {
+    const t0  = ctx.currentTime + delay;
+    const osc = ctx.createOscillator();
+    const g   = ctx.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, t0);
+    g.gain.setValueAtTime(gain, t0);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + duration);
+    osc.connect(g); g.connect(ctx.destination);
+    osc.start(t0);
+    osc.stop(t0 + duration + 0.02);
+  } catch (e) {}
+}
+
+function playTapSound()    { beep({ freq: 700, duration: .05, type: 'sine',     gain: .12 }); }
+function playCloseSound()  { beep({ freq: 520, duration: .12, type: 'triangle', gain: .18 });
+                              beep({ freq: 780, duration: .12, type: 'triangle', gain: .18, delay: .09 }); }
+function playPointsSound() { beep({ freq: 220, duration: .22, type: 'sawtooth', gain: .15 }); }
+
+function vibrate(pattern) {
+  if (!soundEnabled) return;
+  if (navigator.vibrate) { try { navigator.vibrate(pattern); } catch (e) {} }
+}
+
+function toggleSound() {
+  soundEnabled = !soundEnabled;
+  localStorage.setItem(SOUND_KEY, soundEnabled ? '1' : '0');
+  renderSoundToggle();
+  if (soundEnabled) { getAudioCtx(); playTapSound(); }
+}
+
+function renderSoundToggle() {
+  const b = document.getElementById('sound-toggle-btn');
+  if (b) b.textContent = soundEnabled ? '🔊' : '🔇';
+}
+
 function applyHits(hits) {
   if (!G || G.winner || !hits.length) return;
   const p        = G.players[G.cur];
+  let anyClose   = false;
+  let anyPoints  = false;
   const snapshot = hits.map(({ number, mult }) => {
     const preM = G.marks[p][number];
     // Snapshot des scores adversaires AVANT modification
@@ -759,16 +830,23 @@ function applyHits(hits) {
       if (G.marks[p][number] < 3) {
         // La case n'est pas encore fermée par le tireur → marque
         G.marks[p][number]++;
+        if (G.marks[p][number] === 3) anyClose = true;
       } else {
         // Case fermée par le tireur → les adversaires qui n'ont pas fermé prennent les points
-        G.players.filter(q => q !== p && G.marks[q][number] < 3)
-                 .forEach(q => G.scores[q] += VALS[number]);
+        const targets = G.players.filter(q => q !== p && G.marks[q][number] < 3);
+        if (targets.length) anyPoints = true;
+        targets.forEach(q => G.scores[q] += VALS[number]);
       }
     }
     return { number, mult, preM, preScores };
   });
   G.hist.push({ p, snapshot });
   G.turnMarked = true;
+
+  if (anyPoints)      { playPointsSound(); vibrate([30, 40, 30]); }
+  else if (anyClose)  { playCloseSound();  vibrate(40); }
+  else                { playTapSound();    vibrate(12); }
+
   checkWin();
   render();
 }
